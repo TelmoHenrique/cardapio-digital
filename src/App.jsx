@@ -1,0 +1,444 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2 } from 'lucide-react';
+
+const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
+const RESTAURANTE_SLUG = 'restaurante-raiz';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': options.method && options.method !== 'GET' ? 'return=representation' : undefined,
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || `Erro ${res.status}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function sbAuth(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.msg || 'Falha na autenticação');
+  return data;
+}
+
+function formatPreco(v) {
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function LoginScreen({ onLogin, onBack }) {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const handleLogin = async () => {
+    setErro('');
+    setLoading(true);
+    try {
+      const data = await sbAuth('token?grant_type=password', { email, password: senha });
+      onLogin(data.access_token, data.user.id);
+    } catch (e) {
+      setErro('Email ou senha incorretos.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5">
+      <div className="w-full max-w-sm">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-stone-400 text-sm mb-6"><ArrowLeft size={15} /> Voltar ao cardápio</button>
+        <div className="bg-white border border-stone-200 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <ChefHat size={18} className="text-stone-900" />
+            <h2 className="text-lg font-semibold text-stone-900">Painel do restaurante</h2>
+          </div>
+          <p className="text-sm text-stone-500 mb-5">Entre com seu email e senha de administrador.</p>
+
+          <div className="space-y-3">
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email"
+              className="w-full border border-stone-300 rounded-lg px-3 py-2.5 text-stone-900" />
+            <input type="password" value={senha} onChange={e => setSenha(e.target.value)} placeholder="Senha"
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2.5 text-stone-900" />
+          </div>
+
+          {erro && <p className="text-sm text-red-600 mt-3">{erro}</p>}
+
+          <button onClick={handleLogin} disabled={loading || !email || !senha}
+            className="w-full mt-5 bg-stone-900 disabled:bg-stone-300 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : 'Entrar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ItemForm({ item, categorias, onSave, onCancel }) {
+  const [form, setForm] = useState(item || { categoria_id: categorias[0]?.id || '', nome: '', preco: '', descricao: '', disponivel: true, destaque: false, foto_url: '' });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave({ ...form, preco: parseFloat(form.preco) || 0 });
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-stone-900">{item ? 'Editar prato' : 'Novo prato'}</h3>
+          <button onClick={onCancel} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Foto (URL)</label>
+            <div className="flex gap-3 items-start">
+              <div className="w-20 h-20 rounded-lg bg-stone-100 overflow-hidden shrink-0 flex items-center justify-center border border-stone-200">
+                {form.foto_url ? <img src={form.foto_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-stone-300" />}
+              </div>
+              <input value={form.foto_url || ''} onChange={e => setForm({...form, foto_url: e.target.value})}
+                className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" placeholder="Cole o link da foto" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Grupo / categoria</label>
+            <select value={form.categoria_id} onChange={e => setForm({...form, categoria_id: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900">
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Nome do prato</label>
+            <input value={form.nome} onChange={e => setForm({...form, nome: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Picanha na Brasa" />
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Descrição</label>
+            <textarea value={form.descricao || ''} onChange={e => setForm({...form, descricao: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900 h-20 resize-none" />
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Preço (R$)</label>
+            <input type="number" value={form.preco} onChange={e => setForm({...form, preco: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" />
+          </div>
+          <div className="flex items-center gap-6 pt-1">
+            <label className="flex items-center gap-2 text-sm text-stone-700">
+              <input type="checkbox" checked={form.disponivel} onChange={e => setForm({...form, disponivel: e.target.checked})} className="w-4 h-4" />
+              Disponível
+            </label>
+            <label className="flex items-center gap-2 text-sm text-stone-700">
+              <input type="checkbox" checked={form.destaque} onChange={e => setForm({...form, destaque: e.target.checked})} className="w-4 h-4" />
+              Destaque
+            </label>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 rounded-lg bg-stone-900 text-white font-medium flex items-center justify-center gap-2">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminView({ token, onLogout }) {
+  const [pratos, setPratos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id`);
+      const restauranteId = rest[0]?.id;
+      const [cats, prts] = await Promise.all([
+        sbFetch(`categorias?restaurante_id=eq.${restauranteId}&order=ordem`),
+        sbFetch(`pratos?restaurante_id=eq.${restauranteId}&select=*`),
+      ]);
+      setCategorias(cats);
+      setPratos(prts);
+    } catch (e) {
+      setErro('Erro ao carregar dados: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const save = async (item) => {
+    try {
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id`);
+      const restaurante_id = rest[0]?.id;
+      if (item.id) {
+        await sbFetch(`pratos?id=eq.${item.id}`, {
+          method: 'PATCH', headers: authHeaders,
+          body: JSON.stringify({ ...item, restaurante_id }),
+        });
+      } else {
+        await sbFetch(`pratos`, {
+          method: 'POST', headers: authHeaders,
+          body: JSON.stringify({ ...item, restaurante_id }),
+        });
+      }
+      setShowForm(false);
+      setEditing(null);
+      carregar();
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message);
+    }
+  };
+
+  const remove = async (id) => {
+    try {
+      await sbFetch(`pratos?id=eq.${id}`, { method: 'DELETE', headers: authHeaders });
+      carregar();
+    } catch (e) { setErro('Erro ao excluir: ' + e.message); }
+  };
+
+  const toggleDisponivel = async (item) => {
+    try {
+      await sbFetch(`pratos?id=eq.${item.id}`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ disponivel: !item.disponivel }),
+      });
+      carregar();
+    } catch (e) { setErro('Erro ao atualizar: ' + e.message); }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <div className="bg-stone-900 text-white px-5 py-4 flex items-center justify-between sticky top-0 z-10">
+        <span className="font-semibold">Painel do restaurante</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setEditing(null); setShowForm(true); }}
+            className="flex items-center gap-1.5 bg-white text-stone-900 px-3 py-1.5 rounded-lg text-sm font-medium">
+            <Plus size={16} /> Novo prato
+          </button>
+          <button onClick={onLogout} className="text-stone-300 hover:text-white p-1.5"><LogOut size={18} /></button>
+        </div>
+      </div>
+
+      {erro && <p className="text-sm text-red-600 bg-red-50 px-5 py-2">{erro}</p>}
+
+      <div className="p-4 space-y-6 max-w-2xl mx-auto">
+        {categorias.map(cat => {
+          const catItems = pratos.filter(p => p.categoria_id === cat.id);
+          return (
+            <div key={cat.id}>
+              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">{cat.nome} · {catItems.length}</h3>
+              <div className="space-y-2">
+                {catItems.map(item => (
+                  <div key={item.id} className={`bg-white rounded-xl p-3 border ${item.disponivel ? 'border-stone-200' : 'border-stone-200 opacity-60'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0">
+                        {item.foto_url ? <img src={item.foto_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-stone-300" /></div>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-stone-900 text-sm">{item.nome}</span>
+                          {item.destaque && <Flame size={12} className="text-orange-500 shrink-0" />}
+                          {!item.disponivel && <span className="text-xs bg-stone-200 text-stone-600 px-1.5 py-0.5 rounded">Esgotado</span>}
+                        </div>
+                        <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{item.descricao}</p>
+                        <p className="text-sm font-semibold text-stone-900 mt-1">{formatPreco(item.preco)}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <div className="flex gap-1.5">
+                          <button onClick={() => { setEditing(item); setShowForm(true); }} className="text-stone-400 hover:text-stone-700 p-1"><Edit2 size={14} /></button>
+                          <button onClick={() => remove(item.id)} className="text-stone-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>
+                        </div>
+                        <button onClick={() => toggleDisponivel(item)}
+                          className={`text-xs px-2 py-1 rounded-md font-medium whitespace-nowrap ${item.disponivel ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                          {item.disponivel ? 'Disponível' : 'Reativar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {catItems.length === 0 && <p className="text-sm text-stone-400">Nenhum prato neste grupo ainda.</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showForm && <ItemForm item={editing} categorias={categorias} onSave={save} onCancel={() => { setShowForm(false); setEditing(null); }} />}
+    </div>
+  );
+}
+
+function ItemModal({ item, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-56 object-cover" />}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-xl font-serif text-stone-900">{item.nome}</h3>
+            <button onClick={onClose} className="text-stone-400 shrink-0"><X size={20} /></button>
+          </div>
+          <p className="text-stone-500 text-sm leading-relaxed mt-2">{item.descricao}</p>
+          <p className="text-lg font-semibold text-stone-900 mt-4">{formatPreco(item.preco)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientView({ onAdmin }) {
+  const [pratos, setPratos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [activeCat, setActiveCat] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [busca, setBusca] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome`);
+        const restaurante = rest[0];
+        if (!restaurante) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
+        const [cats, prts] = await Promise.all([
+          sbFetch(`categorias?restaurante_id=eq.${restaurante.id}&order=ordem`),
+          sbFetch(`pratos?restaurante_id=eq.${restaurante.id}&disponivel=eq.true&select=*`),
+        ]);
+        setCategorias(cats);
+        setPratos(prts);
+        if (cats[0]) setActiveCat(cats[0].id);
+      } catch (e) {
+        setErro('Erro ao carregar cardápio: ' + e.message);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) {
+    return <div className="min-h-screen bg-[#FBFAF7] flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+  }
+  if (erro) {
+    return <div className="min-h-screen bg-[#FBFAF7] flex items-center justify-center p-6 text-center text-stone-500 text-sm">{erro}</div>;
+  }
+
+  const destaques = pratos.filter(i => i.destaque);
+  const filtrados = busca
+    ? pratos.filter(i => i.nome.toLowerCase().includes(busca.toLowerCase()))
+    : pratos.filter(i => i.categoria_id === activeCat);
+
+  return (
+    <div className="min-h-screen bg-[#FBFAF7]">
+      <div className="bg-stone-900 text-white px-6 pt-8 pb-6">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400 mb-1">Mesa 12</p>
+        <h1 className="text-2xl font-serif">Restaurante Raiz</h1>
+        <p className="text-stone-400 text-sm mt-1">Cardápio conectado ao Supabase</p>
+      </div>
+
+      <div className="px-5 pt-4">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar prato..."
+            className="w-full bg-white border border-stone-200 rounded-full pl-9 pr-4 py-2.5 text-sm text-stone-900" />
+        </div>
+      </div>
+
+      {!busca && destaques.length > 0 && (
+        <div className="px-5 pt-5">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Flame size={14} className="text-orange-500" />
+            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Recomendados pelo chef</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5">
+            {destaques.map(item => (
+              <button key={item.id} onClick={() => setSelected(item)} className="min-w-[180px] bg-white border border-stone-200 rounded-xl overflow-hidden shrink-0 text-left">
+                {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-28 object-cover" />}
+                <div className="p-3">
+                  <p className="font-medium text-stone-900 text-sm">{item.nome}</p>
+                  <p className="text-sm font-semibold text-stone-900 mt-1">{formatPreco(item.preco)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!busca && (
+        <div className="sticky top-0 bg-[#FBFAF7]/95 backdrop-blur-sm border-b border-stone-200 px-5 py-3 flex gap-2 overflow-x-auto z-10 mt-2">
+          {categorias.map(cat => (
+            <button key={cat.id} onClick={() => setActiveCat(cat.id)}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                activeCat === cat.id ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'
+              }`}>
+              {cat.nome}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="px-5 py-5 grid grid-cols-2 gap-3 max-w-lg mx-auto">
+        {filtrados.map(item => (
+          <button key={item.id} onClick={() => setSelected(item)} className="bg-white border border-stone-200 rounded-xl overflow-hidden text-left">
+            {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-24 object-cover" />}
+            <div className="p-3">
+              <p className="font-medium text-stone-900 text-sm leading-tight">{item.nome}</p>
+              <p className="text-sm font-semibold text-stone-900 mt-1.5">{formatPreco(item.preco)}</p>
+            </div>
+          </button>
+        ))}
+        {filtrados.length === 0 && <p className="col-span-2 text-stone-400 text-sm text-center py-8">Nenhum prato encontrado.</p>}
+      </div>
+
+      <div className="px-5 pb-8 pt-2 max-w-lg mx-auto">
+        <button onClick={onAdmin} className="w-full flex items-center justify-center gap-2 text-xs text-stone-400 py-3">
+          <ChefHat size={13} /> Acessar painel do restaurante
+        </button>
+      </div>
+
+      {selected && <ItemModal item={selected} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}
+
+export default function App() {
+  const [view, setView] = useState('client');
+  const [token, setToken] = useState(null);
+
+  if (view === 'admin' && token) {
+    return <AdminView token={token} onLogout={() => { setToken(null); setView('client'); }} />;
+  }
+  if (view === 'login') {
+    return <LoginScreen onLogin={(tok) => { setToken(tok); setView('admin'); }} onBack={() => setView('client')} />;
+  }
+  return <ClientView onAdmin={() => setView('login')} />;
+}
