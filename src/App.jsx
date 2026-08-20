@@ -823,6 +823,35 @@ function ClientView({ onAdmin }) {
         </div>
       </div>
 
+      {/* Carrossel de destaques */}
+      {pratos.some(p => p.destaque) && (
+        <div className="pt-5 pb-1">
+          <div className="flex items-center gap-1.5 px-5 mb-2.5">
+            <Flame size={15} className="text-orange-500" />
+            <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wide">Destaques da casa</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto px-5 pb-2 snap-x snap-mandatory scroll-pl-5">
+            {pratos.filter(p => p.destaque).map(item => (
+              <button key={item.id} onClick={() => setSelected(item)}
+                className="snap-start shrink-0 w-36 bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left">
+                <div className="w-full h-28 bg-stone-100 relative">
+                  {item.foto_url
+                    ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-stone-300" /></div>}
+                  <span className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                    DESTAQUE
+                  </span>
+                </div>
+                <div className="p-2.5">
+                  <p className="text-xs font-semibold text-stone-900 leading-snug line-clamp-2">{item.nome}</p>
+                  <p className="text-emerald-600 text-sm font-bold mt-1">{formatPreco(item.preco)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Abas fixas de categoria */}
       <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
         {categorias.map(cat => (
