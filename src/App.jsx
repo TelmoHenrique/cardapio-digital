@@ -40,6 +40,34 @@ function formatPreco(v) {
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Calcula se o restaurante está aberto agora, com base em hora_abertura/hora_fechamento ("HH:MM")
+function calcularStatusAbertura(horaAbertura, horaFechamento) {
+  if (!horaAbertura || !horaFechamento) return null;
+  const agora = new Date();
+  const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
+
+  const [hA, mA] = horaAbertura.split(':').map(Number);
+  const [hF, mF] = horaFechamento.split(':').map(Number);
+  const minutosAbertura = hA * 60 + mA;
+  const minutosFechamento = hF * 60 + mF;
+
+  let aberto;
+  if (minutosFechamento > minutosAbertura) {
+    // Não cruza a meia-noite (ex: 18:00 - 23:00)
+    aberto = minutosAgora >= minutosAbertura && minutosAgora < minutosFechamento;
+  } else {
+    // Cruza a meia-noite (ex: 18:00 - 02:00)
+    aberto = minutosAgora >= minutosAbertura || minutosAgora < minutosFechamento;
+  }
+
+  return {
+    aberto,
+    texto: aberto
+      ? `Aberto até às ${horaFechamento}`
+      : `Fechado — abre às ${horaAbertura}`,
+  };
+}
+
 // Redimensiona e comprime a imagem no navegador antes de enviar (evita fotos pesadas)
 function comprimirImagem(file, maxDim = 1000, qualidade = 0.8) {
   return new Promise((resolve, reject) => {
@@ -351,6 +379,8 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
     nome: dadosAtuais?.nome || '',
     endereco: dadosAtuais?.endereco || '',
     horario_texto: dadosAtuais?.horario_texto || '',
+    hora_abertura: dadosAtuais?.hora_abertura || '',
+    hora_fechamento: dadosAtuais?.hora_fechamento || '',
     logo_url: dadosAtuais?.logo_url || '',
     capa_url: dadosAtuais?.capa_url || '',
     instagram_url: dadosAtuais?.instagram_url || '',
@@ -438,9 +468,15 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
               className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: São Paulo - SP" />
           </div>
           <div>
-            <label className="text-sm text-stone-600 mb-1 block">Status / horário</label>
-            <input value={form.horario_texto} onChange={e => setForm({...form, horario_texto: e.target.value})}
-              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Aberto até às 23h59" />
+            <label className="text-sm text-stone-600 mb-1 block">Horário de funcionamento</label>
+            <div className="flex items-center gap-2">
+              <input type="time" value={form.hora_abertura} onChange={e => setForm({...form, hora_abertura: e.target.value})}
+                className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-stone-900" />
+              <span className="text-stone-400 text-sm">até</span>
+              <input type="time" value={form.hora_fechamento} onChange={e => setForm({...form, hora_fechamento: e.target.value})}
+                className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-stone-900" />
+            </div>
+            <p className="text-xs text-stone-400 mt-1">O cardápio mostra "Aberto"/"Fechado" automaticamente com base nesse horário.</p>
           </div>
           <div>
             <label className="text-sm text-stone-600 mb-1 block flex items-center gap-1.5"><Instagram size={13} /> Instagram</label>
@@ -488,7 +524,7 @@ function AdminView({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -781,7 +817,7 @@ function ClientView({ onAdmin }) {
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url`);
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -851,9 +887,21 @@ function ClientView({ onAdmin }) {
           {restaurante?.endereco && (
             <p className="text-stone-500 text-sm mt-0.5">{restaurante.endereco}</p>
           )}
-          {restaurante?.horario_texto && (
-            <p className="text-emerald-600 text-sm font-medium mt-0.5">{restaurante.horario_texto}</p>
-          )}
+          {(() => {
+            const status = calcularStatusAbertura(restaurante?.hora_abertura, restaurante?.hora_fechamento);
+            if (status) {
+              return (
+                <p className={`text-sm font-medium mt-0.5 flex items-center justify-center gap-1.5 ${status.aberto ? 'text-emerald-600' : 'text-red-500'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${status.aberto ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  {status.texto}
+                </p>
+              );
+            }
+            if (restaurante?.horario_texto) {
+              return <p className="text-emerald-600 text-sm font-medium mt-0.5">{restaurante.horario_texto}</p>;
+            }
+            return null;
+          })()}
           {mesa && (
             <p className="text-stone-400 text-xs mt-1 uppercase tracking-wide">Mesa {mesa}</p>
           )}
