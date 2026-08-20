@@ -988,6 +988,7 @@ function ClientView({ onAdmin }) {
   const [erro, setErro] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [busca, setBusca] = useState('');
   const mesa = new URLSearchParams(window.location.search).get('mesa');
 
   useEffect(() => {
@@ -1116,7 +1117,21 @@ function ClientView({ onAdmin }) {
         </div>
       )}
 
+      {/* Barra de busca */}
+      <div className="px-3 pt-4">
+        <div className="relative max-w-3xl mx-auto">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar no cardápio..."
+            className="w-full bg-white border-2 border-stone-200 focus:border-stone-900 rounded-full pl-10 pr-4 py-2.5 text-sm text-stone-900 shadow-sm outline-none transition-colors"
+          />
+        </div>
+      </div>
+
       {/* Abas fixas de categoria */}
+      {!busca && (
       <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
@@ -1127,8 +1142,41 @@ function ClientView({ onAdmin }) {
           </button>
         ))}
       </div>
+      )}
+
+      {/* Resultado da busca (lista plana) */}
+      {busca && (
+        <div className="px-3 py-5 max-w-3xl mx-auto">
+          {(() => {
+            const resultado = pratos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
+            if (resultado.length === 0) {
+              return <p className="text-stone-400 text-sm text-center py-10">Nenhum prato encontrado para "{busca}".</p>;
+            }
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {resultado.map(item => (
+                  <button key={item.id} onClick={() => setSelected(item)}
+                    className="group w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-stone-300 transition-all duration-200 text-left">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-stone-900 text-[15px] leading-snug">{item.nome}</p>
+                      <p className="text-sm text-stone-500 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>
+                      <p className="text-emerald-600 font-bold mt-1.5">{formatPreco(item.preco)}</p>
+                    </div>
+                    <div className="relative w-24 h-24 rounded-xl bg-stone-100 overflow-hidden shrink-0">
+                      {item.foto_url
+                        ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-stone-300" /></div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Lista de pratos agrupada por categoria */}
+      {!busca && (
       <div className="px-3 py-5 max-w-3xl mx-auto space-y-7">
         {categorias.map(cat => {
           const itensCat = pratos.filter(p => p.categoria_id === cat.id).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
@@ -1166,6 +1214,7 @@ function ClientView({ onAdmin }) {
         })}
         {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
       </div>
+      )}
 
       {/* Rodapé fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
