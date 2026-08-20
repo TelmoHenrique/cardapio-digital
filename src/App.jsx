@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus } from 'lucide-react';
+import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -385,6 +385,8 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
     capa_url: dadosAtuais?.capa_url || '',
     instagram_url: dadosAtuais?.instagram_url || '',
     whatsapp_url: dadosAtuais?.whatsapp_url || '',
+    pedido_habilitado: dadosAtuais?.pedido_habilitado ?? false,
+    whatsapp_pedido_numero: dadosAtuais?.whatsapp_pedido_numero || '',
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCapa, setUploadingCapa] = useState(false);
@@ -488,6 +490,21 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
             <input value={form.whatsapp_url} onChange={e => setForm({...form, whatsapp_url: e.target.value})}
               className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="https://wa.me/5511999999999" />
             <p className="text-xs text-stone-400 mt-1">Formato: https://wa.me/55DDDNUMERO (só números, com código do país)</p>
+          </div>
+
+          <div className="pt-2 border-t border-stone-100">
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-800 mt-4">
+              <input type="checkbox" checked={form.pedido_habilitado} onChange={e => setForm({...form, pedido_habilitado: e.target.checked})} className="w-4 h-4" />
+              Ativar pedidos pelo cardápio (Pacote com Pedido)
+            </label>
+            {form.pedido_habilitado && (
+              <div className="mt-3">
+                <label className="text-sm text-stone-600 mb-1 block">Número de WhatsApp para receber pedidos</label>
+                <input value={form.whatsapp_pedido_numero} onChange={e => setForm({...form, whatsapp_pedido_numero: e.target.value})}
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="5565999999999" />
+                <p className="text-xs text-stone-400 mt-1">Só números, com código do país (55) e DDD.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -640,7 +657,7 @@ function AdminView({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -865,15 +882,18 @@ function AdminView({ token, onLogout }) {
 
 // ---------- ITEM DETALHE (cliente) ----------
 
-function ItemModal({ item, onClose }) {
+function ItemModal({ item, onClose, pedidoHabilitado, onAddToCart }) {
   const [opcoes, setOpcoes] = useState([]);
   const [loadingOpcoes, setLoadingOpcoes] = useState(true);
+  const [opcaoSelecionada, setOpcaoSelecionada] = useState(null);
+  const [qtd, setQtd] = useState(1);
 
   useEffect(() => {
     (async () => {
       try {
         const dados = await sbFetch(`opcoes_produto?prato_id=eq.${item.id}&disponivel=eq.true&order=ordem`);
         setOpcoes(dados || []);
+        if (dados && dados.length > 0) setOpcaoSelecionada(dados[0].id);
       } catch (e) { /* silencioso: item sem opções cadastradas */ }
       setLoadingOpcoes(false);
     })();
@@ -892,6 +912,22 @@ function ItemModal({ item, onClose }) {
       window.scrollTo(0, scrollY);
     };
   }, []);
+
+  const opcaoAtual = opcoes.find(o => o.id === opcaoSelecionada);
+  const precoUnitario = item.preco + (opcaoAtual?.preco_adicional || 0);
+
+  const adicionar = () => {
+    onAddToCart({
+      pratoId: item.id,
+      nome: item.nome,
+      precoBase: item.preco,
+      opcaoId: opcaoAtual?.id || null,
+      opcaoNome: opcaoAtual?.nome || null,
+      opcaoPrecoAdicional: opcaoAtual?.preco_adicional || 0,
+      qtd,
+    });
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -915,22 +951,55 @@ function ItemModal({ item, onClose }) {
             <div className="mt-5 pt-4 border-t border-stone-100">
               <div className="flex items-center gap-1.5 mb-3">
                 <ListPlus size={14} className="text-stone-900" />
-                <p className="text-sm font-bold text-stone-900 uppercase tracking-wide">Opções disponíveis</p>
+                <p className="text-sm font-bold text-stone-900 uppercase tracking-wide">
+                  {pedidoHabilitado ? 'Escolha uma opção' : 'Opções disponíveis'}
+                </p>
               </div>
               <div className="space-y-2">
                 {opcoes.map(op => (
-                  <div key={op.id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
-                    <span className="text-sm font-medium text-stone-800">{op.nome}</span>
-                    {op.preco_adicional > 0 ? (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                        + {formatPreco(op.preco_adicional)}
+                  pedidoHabilitado ? (
+                    <button key={op.id} onClick={() => setOpcaoSelecionada(op.id)}
+                      className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 border-2 transition-colors text-left ${
+                        opcaoSelecionada === op.id ? 'border-stone-900 bg-stone-50' : 'border-stone-200 bg-white'
+                      }`}>
+                      <span className="flex items-center gap-2 text-sm font-medium text-stone-800">
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${opcaoSelecionada === op.id ? 'border-stone-900' : 'border-stone-300'}`}>
+                          {opcaoSelecionada === op.id && <span className="w-2 h-2 rounded-full bg-stone-900" />}
+                        </span>
+                        {op.nome}
                       </span>
-                    ) : (
-                      <span className="text-xs font-medium text-stone-400">sem custo adicional</span>
-                    )}
-                  </div>
+                      {op.preco_adicional > 0 ? (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">+ {formatPreco(op.preco_adicional)}</span>
+                      ) : (
+                        <span className="text-xs font-medium text-stone-400">sem custo adicional</span>
+                      )}
+                    </button>
+                  ) : (
+                    <div key={op.id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
+                      <span className="text-sm font-medium text-stone-800">{op.nome}</span>
+                      {op.preco_adicional > 0 ? (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">+ {formatPreco(op.preco_adicional)}</span>
+                      ) : (
+                        <span className="text-xs font-medium text-stone-400">sem custo adicional</span>
+                      )}
+                    </div>
+                  )
                 ))}
               </div>
+            </div>
+          )}
+
+          {pedidoHabilitado && (
+            <div className="mt-5 pt-4 border-t border-stone-100 flex items-center gap-3">
+              <div className="flex items-center gap-3 bg-stone-100 rounded-full px-2 py-1.5">
+                <button onClick={() => setQtd(q => Math.max(1, q - 1))} className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center text-stone-700"><Minus size={14} /></button>
+                <span className="text-sm font-semibold w-4 text-center">{qtd}</span>
+                <button onClick={() => setQtd(q => q + 1)} className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center text-stone-700"><Plus size={14} /></button>
+              </div>
+              <button onClick={adicionar}
+                className="flex-1 bg-stone-900 text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
+                Adicionar · {formatPreco(precoUnitario * qtd)}
+              </button>
             </div>
           )}
         </div>
@@ -980,6 +1049,113 @@ function WaiterButton({ restauranteId, mesa }) {
   );
 }
 
+function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
+  const [nome, setNome] = useState('');
+  const [pagamento, setPagamento] = useState('Pix');
+  const [local, setLocal] = useState(mesa ? `Mesa ${mesa}` : '');
+  const [enviando, setEnviando] = useState(false);
+
+  const totalItem = (c) => (c.precoBase + (c.opcaoPrecoAdicional || 0)) * c.qtd;
+  const total = cart.reduce((s, c) => s + totalItem(c), 0);
+
+  const alterarQtd = (index, delta) => {
+    setCart(prev => prev.map((c, i) => i === index ? { ...c, qtd: Math.max(1, c.qtd + delta) } : c));
+  };
+  const removerItem = (index) => {
+    setCart(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const enviarPedido = () => {
+    if (!restaurante?.whatsapp_pedido_numero) return;
+    setEnviando(true);
+    let msg = `🛎️ *Novo pedido — ${restaurante.nome}*\n`;
+    if (local) msg += `📍 ${local}\n`;
+    if (nome) msg += `👤 ${nome}\n`;
+    msg += `\n`;
+    cart.forEach(c => {
+      msg += `${c.qtd}x ${c.nome}`;
+      if (c.opcaoNome) msg += ` (${c.opcaoNome})`;
+      msg += ` — ${formatPreco(totalItem(c))}\n`;
+    });
+    msg += `\n💰 *Total: ${formatPreco(total)}*\n`;
+    msg += `💳 Pagamento: ${pagamento}`;
+
+    const numero = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    setCart([]);
+    setEnviando(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-stone-900">Finalizar pedido</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"><X size={16} /></button>
+        </div>
+
+        <div className="space-y-2.5 mb-5">
+          {cart.map((c, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-stone-800">{c.nome}</p>
+                {c.opcaoNome && <p className="text-xs text-stone-500">{c.opcaoNome}</p>}
+                <p className="text-xs font-semibold text-emerald-600 mt-0.5">{formatPreco(totalItem(c))}</p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white rounded-full border border-stone-200 px-1.5 py-1 shrink-0">
+                <button onClick={() => alterarQtd(i, -1)} className="w-6 h-6 flex items-center justify-center text-stone-600"><Minus size={12} /></button>
+                <span className="text-xs font-semibold w-3 text-center">{c.qtd}</span>
+                <button onClick={() => alterarQtd(i, 1)} className="w-6 h-6 flex items-center justify-center text-stone-600"><Plus size={12} /></button>
+              </div>
+              <button onClick={() => removerItem(i)} className="text-stone-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+            </div>
+          ))}
+          {cart.length === 0 && <p className="text-sm text-stone-400 text-center py-6">Seu carrinho está vazio.</p>}
+        </div>
+
+        {cart.length > 0 && (
+          <>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="text-sm text-stone-600 mb-1 block">Seu nome</label>
+                <input value={nome} onChange={e => setNome(e.target.value)}
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Nome" />
+              </div>
+              <div>
+                <label className="text-sm text-stone-600 mb-1 block">Mesa / local</label>
+                <input value={local} onChange={e => setLocal(e.target.value)}
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Mesa 5" />
+              </div>
+              <div>
+                <label className="text-sm text-stone-600 mb-1 block">Forma de pagamento</label>
+                <select value={pagamento} onChange={e => setPagamento(e.target.value)}
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900">
+                  <option>Pix</option>
+                  <option>Cartão</option>
+                  <option>Dinheiro</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-4 pt-3 border-t border-stone-200">
+              <span className="text-sm font-medium text-stone-600">Total</span>
+              <span className="text-lg font-bold text-stone-900">{formatPreco(total)}</span>
+            </div>
+
+            <button onClick={enviarPedido} disabled={enviando}
+              className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">
+              <MessageCircle size={18} /> Enviar pedido pelo WhatsApp
+            </button>
+            <p className="text-xs text-stone-400 text-center mt-2">Você será direcionado ao WhatsApp do restaurante para confirmar.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ClientView({ onAdmin }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -989,12 +1165,14 @@ function ClientView({ onAdmin }) {
   const [activeCat, setActiveCat] = useState(null);
   const [selected, setSelected] = useState(null);
   const [busca, setBusca] = useState('');
+  const [cart, setCart] = useState([]);
+  const [showCheckout, setShowCheckout] = useState(false);
   const mesa = new URLSearchParams(window.location.search).get('mesa');
 
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento`);
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -1024,6 +1202,8 @@ function ClientView({ onAdmin }) {
     const el = document.getElementById(`cat-${id}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const pedidoDisponivel = !!(restaurante?.pedido_habilitado && restaurante?.whatsapp_pedido_numero);
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
@@ -1214,6 +1394,20 @@ function ClientView({ onAdmin }) {
       </div>
       )}
 
+      {/* Barra flutuante do carrinho */}
+      {pedidoDisponivel && cart.length > 0 && (
+        <button onClick={() => setShowCheckout(true)}
+          className="fixed bottom-16 left-3 right-3 max-w-3xl mx-auto bg-stone-900 text-white rounded-2xl px-5 py-3.5 shadow-lg flex items-center justify-between z-20">
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <ShoppingBag size={16} />
+            {cart.reduce((s, c) => s + c.qtd, 0)} {cart.reduce((s, c) => s + c.qtd, 0) === 1 ? 'item' : 'itens'}
+          </span>
+          <span className="font-bold">
+            {formatPreco(cart.reduce((s, c) => s + (c.precoBase + (c.opcaoPrecoAdicional || 0)) * c.qtd, 0))}
+          </span>
+        </button>
+      )}
+
       {/* Rodapé fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
         <div className="opacity-90">
@@ -1225,7 +1419,24 @@ function ClientView({ onAdmin }) {
         </button>
       </div>
 
-      {selected && <ItemModal item={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ItemModal
+          item={selected}
+          onClose={() => setSelected(null)}
+          pedidoHabilitado={pedidoDisponivel}
+          onAddToCart={(novoItem) => setCart(prev => [...prev, novoItem])}
+        />
+      )}
+
+      {showCheckout && (
+        <Checkout
+          cart={cart}
+          setCart={setCart}
+          restaurante={restaurante}
+          mesa={mesa}
+          onClose={() => setShowCheckout(false)}
+        />
+      )}
     </div>
   );
 }
