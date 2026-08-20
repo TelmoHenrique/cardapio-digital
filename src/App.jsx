@@ -312,14 +312,126 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
   );
 }
 
+function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }) {
+  const [form, setForm] = useState({
+    nome: dadosAtuais?.nome || '',
+    endereco: dadosAtuais?.endereco || '',
+    horario_texto: dadosAtuais?.horario_texto || '',
+    logo_url: dadosAtuais?.logo_url || '',
+    capa_url: dadosAtuais?.capa_url || '',
+  });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCapa, setUploadingCapa] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState('');
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const handleUpload = async (file, campo, setUploading) => {
+    setUploading(true);
+    setErro('');
+    try {
+      const url = await uploadFoto(file, token);
+      setForm(f => ({ ...f, [campo]: url }));
+    } catch (e) {
+      setErro('Erro ao enviar imagem: ' + e.message);
+    }
+    setUploading(false);
+  };
+
+  const salvar = async () => {
+    setSaving(true);
+    setErro('');
+    try {
+      await sbFetch(`restaurantes?id=eq.${restauranteId}`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify(form),
+      });
+      onChanged();
+      onClose();
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-stone-900">Perfil do restaurante</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Foto de capa</label>
+            <div className="w-full h-24 rounded-lg bg-stone-100 overflow-hidden mb-2 flex items-center justify-center">
+              {uploadingCapa ? <Loader2 size={18} className="animate-spin text-stone-400" /> :
+                form.capa_url ? <img src={form.capa_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-stone-300" />}
+            </div>
+            <label className="inline-flex items-center gap-1.5 bg-stone-900 text-white text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer">
+              <Plus size={12} /> {form.capa_url ? 'Trocar capa' : 'Escolher capa'}
+              <input type="file" accept="image/*" className="hidden" disabled={uploadingCapa}
+                onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0], 'capa_url', setUploadingCapa)} />
+            </label>
+          </div>
+
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Logo (foto de perfil)</label>
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-stone-100 overflow-hidden flex items-center justify-center shrink-0">
+                {uploadingLogo ? <Loader2 size={16} className="animate-spin text-stone-400" /> :
+                  form.logo_url ? <img src={form.logo_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-stone-300" />}
+              </div>
+              <label className="inline-flex items-center gap-1.5 bg-stone-900 text-white text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer">
+                <Plus size={12} /> {form.logo_url ? 'Trocar logo' : 'Escolher logo'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploadingLogo}
+                  onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0], 'logo_url', setUploadingLogo)} />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Nome do restaurante</label>
+            <input value={form.nome} onChange={e => setForm({...form, nome: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" />
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Endereço / cidade</label>
+            <input value={form.endereco} onChange={e => setForm({...form, endereco: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: São Paulo - SP" />
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Status / horário</label>
+            <input value={form.horario_texto} onChange={e => setForm({...form, horario_texto: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Aberto até às 23h59" />
+          </div>
+        </div>
+
+        {erro && <p className="text-sm text-red-600 mt-3">{erro}</p>}
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Cancelar</button>
+          <button onClick={salvar} disabled={saving || uploadingLogo || uploadingCapa}
+            className="flex-1 py-2.5 rounded-lg bg-stone-900 text-white font-medium flex items-center justify-center gap-2">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ token, onLogout }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [restauranteId, setRestauranteId] = useState(null);
+  const [restauranteDados, setRestauranteDados] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [erro, setErro] = useState('');
 
   const authHeaders = { Authorization: `Bearer ${token}` };
@@ -327,9 +439,10 @@ function AdminView({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
+      setRestauranteDados(rest[0]);
       const [cats, prts] = await Promise.all([
         sbFetch(`categorias?restaurante_id=eq.${rId}&order=ordem`),
         sbFetch(`pratos?restaurante_id=eq.${rId}&select=*`),
@@ -393,6 +506,7 @@ function AdminView({ token, onLogout }) {
       <div className="bg-stone-900 text-white px-5 py-4 flex items-center justify-between sticky top-0 z-10">
         <span className="font-semibold">Painel do restaurante</span>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowProfile(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Perfil</button>
           <button onClick={() => setShowGroups(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Grupos</button>
           <button onClick={() => { setEditing(null); setShowForm(true); }}
             className="flex items-center gap-1.5 bg-white text-stone-900 px-3 py-1.5 rounded-lg text-sm font-medium">
@@ -456,6 +570,15 @@ function AdminView({ token, onLogout }) {
           onChanged={carregar}
         />
       )}
+      {showProfile && (
+        <ProfileEditor
+          token={token}
+          restauranteId={restauranteId}
+          dadosAtuais={restauranteDados}
+          onClose={() => setShowProfile(false)}
+          onChanged={carregar}
+        />
+      )}
     </div>
   );
 }
@@ -489,6 +612,7 @@ function ItemModal({ item, onClose }) {
 function ClientView({ onAdmin }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [restaurante, setRestaurante] = useState(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [activeCat, setActiveCat] = useState(null);
@@ -497,12 +621,13 @@ function ClientView({ onAdmin }) {
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome`);
-        const restaurante = rest[0];
-        if (!restaurante) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto`);
+        const rst = rest[0];
+        if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
+        setRestaurante(rst);
         const [cats, prts] = await Promise.all([
-          sbFetch(`categorias?restaurante_id=eq.${restaurante.id}&order=ordem`),
-          sbFetch(`pratos?restaurante_id=eq.${restaurante.id}&disponivel=eq.true&select=*`),
+          sbFetch(`categorias?restaurante_id=eq.${rst.id}&order=ordem`),
+          sbFetch(`pratos?restaurante_id=eq.${rst.id}&disponivel=eq.true&select=*`),
         ]);
         setCategorias(cats);
         setPratos(prts);
@@ -529,21 +654,34 @@ function ClientView({ onAdmin }) {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
-      {/* Header com identidade do restaurante */}
-      <div className="bg-gradient-to-br from-stone-900 to-stone-800 text-white px-5 pt-7 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-            <ChefHat size={20} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold leading-tight">Restaurante Raiz</h1>
-            <p className="text-stone-400 text-xs mt-0.5">Cardápio digital</p>
-          </div>
+      {/* Capa */}
+      <div className="relative h-40 bg-stone-800">
+        {restaurante?.capa_url && (
+          <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+      </div>
+
+      {/* Avatar sobreposto + info */}
+      <div className="px-5 -mt-9 relative">
+        <div className="w-[72px] h-[72px] rounded-full border-4 border-stone-50 bg-white overflow-hidden shadow-md">
+          {restaurante?.logo_url
+            ? <img src={restaurante.logo_url} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center bg-stone-100"><ChefHat size={26} className="text-stone-400" /></div>}
+        </div>
+        <div className="mt-2.5">
+          <h1 className="text-xl font-bold text-stone-900">{restaurante?.nome || 'Restaurante'}</h1>
+          {restaurante?.endereco && (
+            <p className="text-stone-500 text-sm mt-0.5">{restaurante.endereco}</p>
+          )}
+          {restaurante?.horario_texto && (
+            <p className="text-emerald-600 text-sm font-medium mt-0.5">{restaurante.horario_texto}</p>
+          )}
         </div>
       </div>
 
       {/* Abas fixas de categoria */}
-      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
             className={`px-4 py-2 text-sm font-semibold whitespace-nowrap rounded-full transition-all ${
