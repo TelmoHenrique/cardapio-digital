@@ -897,14 +897,21 @@ function ItemModal({ item, onClose }) {
 
           {!loadingOpcoes && opcoes.length > 0 && (
             <div className="mt-5 pt-4 border-t border-stone-100">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Opções disponíveis</p>
-              <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 mb-3">
+                <ListPlus size={14} className="text-stone-900" />
+                <p className="text-sm font-bold text-stone-900 uppercase tracking-wide">Opções disponíveis</p>
+              </div>
+              <div className="space-y-2">
                 {opcoes.map(op => (
-                  <div key={op.id} className="flex items-center justify-between text-sm">
-                    <span className="text-stone-700">{op.nome}</span>
-                    <span className={op.preco_adicional > 0 ? 'text-emerald-600 font-medium' : 'text-stone-400'}>
-                      {op.preco_adicional > 0 ? `+ ${formatPreco(op.preco_adicional)}` : 'sem custo adicional'}
-                    </span>
+                  <div key={op.id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
+                    <span className="text-sm font-medium text-stone-800">{op.nome}</span>
+                    {op.preco_adicional > 0 ? (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                        + {formatPreco(op.preco_adicional)}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-stone-400">sem custo adicional</span>
+                    )}
                   </div>
                 ))}
               </div>
