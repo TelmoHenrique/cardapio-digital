@@ -637,6 +637,96 @@ function OptionsManager({ token, prato, onClose }) {
   );
 }
 
+function DeliveryFeesManager({ token, restauranteId, onClose }) {
+  const [taxas, setTaxas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [novo, setNovo] = useState({ bairro: '', valor: '' });
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState('');
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const dados = await sbFetch(`taxas_entrega?restaurante_id=eq.${restauranteId}&order=bairro`, { headers: authHeaders });
+      setTaxas(dados || []);
+    } catch (e) {
+      setErro('Erro ao carregar taxas: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const addTaxa = async () => {
+    if (!novo.bairro.trim()) return;
+    setSaving(true);
+    setErro('');
+    try {
+      await sbFetch('taxas_entrega', {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ restaurante_id: restauranteId, bairro: novo.bairro.trim(), valor: parseFloat(novo.valor) || 0 }),
+      });
+      setNovo({ bairro: '', valor: '' });
+      carregar();
+    } catch (e) {
+      setErro('Erro ao adicionar: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  const removerTaxa = async (id) => {
+    try {
+      await sbFetch(`taxas_entrega?id=eq.${id}`, { method: 'DELETE', headers: authHeaders });
+      carregar();
+    } catch (e) { setErro('Erro ao excluir: ' + e.message); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg font-semibold text-stone-900">Taxas de entrega por bairro</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
+        </div>
+        <p className="text-xs text-stone-400 mb-4">Quando o cliente digita o CEP, o sistema identifica o bairro e já aplica o valor cadastrado aqui.</p>
+
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-stone-400" /></div>
+        ) : (
+          <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+            {taxas.map(t => (
+              <div key={t.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2 gap-2">
+                <span className="text-sm text-stone-800 flex-1 truncate">{t.bairro}</span>
+                <span className="text-sm font-semibold text-emerald-700">{formatPreco(t.valor)}</span>
+                <button onClick={() => removerTaxa(t.id)} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button>
+              </div>
+            ))}
+            {taxas.length === 0 && <p className="text-sm text-stone-400">Nenhum bairro cadastrado ainda.</p>}
+          </div>
+        )}
+
+        {erro && <p className="text-sm text-red-600 mb-3">{erro}</p>}
+
+        <div className="border-t border-stone-200 pt-4 space-y-2">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Novo bairro</p>
+          <div className="flex gap-2">
+            <input value={novo.bairro} onChange={e => setNovo({...novo, bairro: e.target.value})}
+              placeholder="Ex: Centro" className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+            <input type="number" value={novo.valor} onChange={e => setNovo({...novo, valor: e.target.value})}
+              placeholder="R$" className="w-20 border border-stone-300 rounded-lg px-2 py-2 text-sm text-stone-900" />
+          </div>
+          <button onClick={addTaxa} disabled={saving} className="w-full bg-stone-900 text-white text-sm py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar bairro'}
+          </button>
+        </div>
+
+        <button onClick={onClose} className="w-full mt-4 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Fechar</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ token, onLogout }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -648,6 +738,7 @@ function AdminView({ token, onLogout }) {
   const [showGroups, setShowGroups] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [managingOptions, setManagingOptions] = useState(null);
+  const [showDeliveryFees, setShowDeliveryFees] = useState(false);
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('cardapio'); // cardapio | chamados
   const [chamados, setChamados] = useState([]);
@@ -752,6 +843,7 @@ function AdminView({ token, onLogout }) {
         <div className="flex items-center gap-2">
           <button onClick={() => setShowProfile(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Perfil</button>
           <button onClick={() => setShowGroups(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Grupos</button>
+          <button onClick={() => setShowDeliveryFees(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Entrega</button>
           <button onClick={() => { setEditing(null); setShowForm(true); }}
             className="flex items-center gap-1.5 bg-white text-stone-900 px-3 py-1.5 rounded-lg text-sm font-medium">
             <Plus size={16} /> Novo prato
@@ -874,6 +966,13 @@ function AdminView({ token, onLogout }) {
           token={token}
           prato={managingOptions}
           onClose={() => setManagingOptions(null)}
+        />
+      )}
+      {showDeliveryFees && (
+        <DeliveryFeesManager
+          token={token}
+          restauranteId={restauranteId}
+          onClose={() => setShowDeliveryFees(false)}
         />
       )}
     </div>
@@ -1051,12 +1150,23 @@ function WaiterButton({ restauranteId, mesa }) {
 
 function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [pagamento, setPagamento] = useState('Pix');
+  const [tipoEntrega, setTipoEntrega] = useState(mesa ? 'mesa' : 'entrega'); // mesa | entrega
   const [local, setLocal] = useState(mesa ? `Mesa ${mesa}` : '');
+  const [cep, setCep] = useState('');
+  const [endereco, setEndereco] = useState({ rua: '', bairro: '', cidade: '' });
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [erroCep, setErroCep] = useState('');
+  const [taxaEntrega, setTaxaEntrega] = useState(null); // null = não calculada, 0 = grátis, >0 = valor
+  const [taxaIndisponivel, setTaxaIndisponivel] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
   const totalItem = (c) => (c.precoBase + (c.opcaoPrecoAdicional || 0)) * c.qtd;
-  const total = cart.reduce((s, c) => s + totalItem(c), 0);
+  const subtotal = cart.reduce((s, c) => s + totalItem(c), 0);
+  const total = subtotal + (taxaEntrega || 0);
 
   const alterarQtd = (index, delta) => {
     setCart(prev => prev.map((c, i) => i === index ? { ...c, qtd: Math.max(1, c.qtd + delta) } : c));
@@ -1065,23 +1175,73 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     setCart(prev => prev.filter((_, i) => i !== index));
   };
 
+  const buscarCep = async () => {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) { setErroCep('CEP inválido.'); return; }
+    setBuscandoCep(true);
+    setErroCep('');
+    setTaxaEntrega(null);
+    setTaxaIndisponivel(false);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        setErroCep('CEP não encontrado.');
+        setBuscandoCep(false);
+        return;
+      }
+      setEndereco({ rua: data.logradouro || '', bairro: data.bairro || '', cidade: data.localidade || '' });
+
+      // Busca a taxa de entrega cadastrada para esse bairro
+      if (data.bairro && restaurante?.id) {
+        try {
+          const taxas = await sbFetch(`taxas_entrega?restaurante_id=eq.${restaurante.id}&bairro=ilike.${encodeURIComponent(data.bairro)}`);
+          if (taxas && taxas.length > 0) {
+            setTaxaEntrega(taxas[0].valor);
+          } else {
+            setTaxaIndisponivel(true);
+          }
+        } catch (e) {
+          setTaxaIndisponivel(true);
+        }
+      }
+    } catch (e) {
+      setErroCep('Erro ao buscar o CEP. Tente novamente.');
+    }
+    setBuscandoCep(false);
+  };
+
+  const enderecoCompleto = endereco.rua
+    ? `${endereco.rua}, ${numero}${complemento ? ' - ' + complemento : ''} — ${endereco.bairro}, ${endereco.cidade}`
+    : '';
+
+  const podeEnviar = tipoEntrega === 'mesa' ? !!local : !!(telefone && endereco.rua && numero);
+
   const enviarPedido = () => {
     if (!restaurante?.whatsapp_pedido_numero) return;
     setEnviando(true);
     let msg = `🛎️ *Novo pedido — ${restaurante.nome}*\n`;
-    if (local) msg += `📍 ${local}\n`;
     if (nome) msg += `👤 ${nome}\n`;
+    if (telefone) msg += `📱 ${telefone}\n`;
+    if (tipoEntrega === 'mesa') {
+      if (local) msg += `📍 ${local}\n`;
+    } else {
+      msg += `📍 Entrega: ${enderecoCompleto}\n`;
+    }
     msg += `\n`;
     cart.forEach(c => {
       msg += `${c.qtd}x ${c.nome}`;
       if (c.opcaoNome) msg += ` (${c.opcaoNome})`;
       msg += ` — ${formatPreco(totalItem(c))}\n`;
     });
-    msg += `\n💰 *Total: ${formatPreco(total)}*\n`;
+    if (tipoEntrega === 'entrega') {
+      msg += `\n🛵 Taxa de entrega: ${taxaEntrega != null ? formatPreco(taxaEntrega) : 'a combinar'}\n`;
+    }
+    msg += `\n💰 *Total: ${formatPreco(total)}${taxaIndisponivel ? ' + taxa a combinar' : ''}*\n`;
     msg += `💳 Pagamento: ${pagamento}`;
 
-    const numero = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
-    const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+    const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
+    const url = `https://wa.me/${numeroRest}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setCart([]);
     setEnviando(false);
@@ -1117,17 +1277,72 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
 
         {cart.length > 0 && (
           <>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setTipoEntrega('mesa')}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${tipoEntrega === 'mesa' ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-600 border-stone-300'}`}>
+                Retirar / Mesa
+              </button>
+              <button onClick={() => setTipoEntrega('entrega')}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${tipoEntrega === 'entrega' ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-600 border-stone-300'}`}>
+                Entrega
+              </button>
+            </div>
+
             <div className="space-y-3 mb-5">
               <div>
                 <label className="text-sm text-stone-600 mb-1 block">Seu nome</label>
                 <input value={nome} onChange={e => setNome(e.target.value)}
                   className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Nome" />
               </div>
-              <div>
-                <label className="text-sm text-stone-600 mb-1 block">Mesa / local</label>
-                <input value={local} onChange={e => setLocal(e.target.value)}
-                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Mesa 5" />
-              </div>
+
+              {tipoEntrega === 'mesa' ? (
+                <div>
+                  <label className="text-sm text-stone-600 mb-1 block">Mesa / local</label>
+                  <input value={local} onChange={e => setLocal(e.target.value)}
+                    className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Mesa 5" />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-sm text-stone-600 mb-1 block">Telefone / WhatsApp</label>
+                    <input value={telefone} onChange={e => setTelefone(e.target.value)}
+                      className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="(65) 99999-9999" />
+                  </div>
+                  <div>
+                    <label className="text-sm text-stone-600 mb-1 block">CEP</label>
+                    <div className="flex gap-2">
+                      <input value={cep} onChange={e => setCep(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarCep()}
+                        className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="00000-000" />
+                      <button onClick={buscarCep} disabled={buscandoCep}
+                        className="bg-stone-900 text-white px-4 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                        {buscandoCep ? <Loader2 size={14} className="animate-spin" /> : 'Buscar'}
+                      </button>
+                    </div>
+                    {erroCep && <p className="text-xs text-red-600 mt-1">{erroCep}</p>}
+                  </div>
+
+                  {endereco.rua && (
+                    <>
+                      <div className="bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700">
+                        {endereco.rua} — {endereco.bairro}, {endereco.cidade}
+                      </div>
+                      <div className="flex gap-2">
+                        <input value={numero} onChange={e => setNumero(e.target.value)}
+                          className="w-24 border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Número" />
+                        <input value={complemento} onChange={e => setComplemento(e.target.value)}
+                          className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Complemento (opcional)" />
+                      </div>
+                      {taxaEntrega != null && (
+                        <p className="text-sm text-emerald-700 font-medium">🛵 Taxa de entrega: {formatPreco(taxaEntrega)}</p>
+                      )}
+                      {taxaIndisponivel && (
+                        <p className="text-xs text-amber-600">Taxa de entrega para esse bairro será combinada pelo WhatsApp.</p>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
               <div>
                 <label className="text-sm text-stone-600 mb-1 block">Forma de pagamento</label>
                 <select value={pagamento} onChange={e => setPagamento(e.target.value)}
@@ -1139,13 +1354,25 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-4 pt-3 border-t border-stone-200">
-              <span className="text-sm font-medium text-stone-600">Total</span>
-              <span className="text-lg font-bold text-stone-900">{formatPreco(total)}</span>
+            <div className="space-y-1 mb-4 pt-3 border-t border-stone-200">
+              <div className="flex items-center justify-between text-sm text-stone-500">
+                <span>Subtotal</span>
+                <span>{formatPreco(subtotal)}</span>
+              </div>
+              {tipoEntrega === 'entrega' && taxaEntrega != null && (
+                <div className="flex items-center justify-between text-sm text-stone-500">
+                  <span>Taxa de entrega</span>
+                  <span>{formatPreco(taxaEntrega)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-sm font-medium text-stone-600">Total</span>
+                <span className="text-lg font-bold text-stone-900">{formatPreco(total)}</span>
+              </div>
             </div>
 
-            <button onClick={enviarPedido} disabled={enviando}
-              className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">
+            <button onClick={enviarPedido} disabled={enviando || !podeEnviar}
+              className="w-full bg-emerald-600 disabled:bg-stone-300 text-white py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">
               <MessageCircle size={18} /> Enviar pedido pelo WhatsApp
             </button>
             <p className="text-xs text-stone-400 text-center mt-2">Você será direcionado ao WhatsApp do restaurante para confirmar.</p>
