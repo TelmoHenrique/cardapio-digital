@@ -163,12 +163,78 @@ function ItemForm({ item, categorias, onSave, onCancel }) {
   );
 }
 
+function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) {
+  const [novo, setNovo] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState('');
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const addGroup = async () => {
+    if (!novo.trim()) return;
+    setSaving(true);
+    setErro('');
+    try {
+      const proximaOrdem = categorias.length > 0 ? Math.max(...categorias.map(c => c.ordem || 0)) + 1 : 1;
+      await sbFetch('categorias', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ restaurante_id: restauranteId, nome: novo.trim(), ordem: proximaOrdem }),
+      });
+      setNovo('');
+      onChanged();
+    } catch (e) {
+      setErro('Erro ao criar grupo: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  const removeGroup = async (cat) => {
+    if (!confirm(`Excluir o grupo "${cat.nome}"? Isso só funciona se não houver pratos nele.`)) return;
+    try {
+      await sbFetch(`categorias?id=eq.${cat.id}`, { method: 'DELETE', headers: authHeaders });
+      onChanged();
+    } catch (e) {
+      setErro('Não foi possível excluir. Mova ou apague os pratos deste grupo primeiro.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-stone-900">Grupos do cardápio</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
+        </div>
+        <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+          {categorias.map(cat => (
+            <div key={cat.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2">
+              <span className="text-sm text-stone-800">{cat.nome}</span>
+              <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button>
+            </div>
+          ))}
+          {categorias.length === 0 && <p className="text-sm text-stone-400">Nenhum grupo ainda.</p>}
+        </div>
+        {erro && <p className="text-sm text-red-600 mb-3">{erro}</p>}
+        <div className="flex gap-2">
+          <input value={novo} onChange={e => setNovo(e.target.value)} onKeyDown={e => e.key === 'Enter' && addGroup()}
+            placeholder="Nome do novo grupo" className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+          <button onClick={addGroup} disabled={saving} className="bg-stone-900 text-white px-4 rounded-lg text-sm font-medium">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ token, onLogout }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [restauranteId, setRestauranteId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
   const [erro, setErro] = useState('');
 
   const authHeaders = { Authorization: `Bearer ${token}` };
@@ -177,10 +243,11 @@ function AdminView({ token, onLogout }) {
     setLoading(true);
     try {
       const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id`);
-      const restauranteId = rest[0]?.id;
+      const rId = rest[0]?.id;
+      setRestauranteId(rId);
       const [cats, prts] = await Promise.all([
-        sbFetch(`categorias?restaurante_id=eq.${restauranteId}&order=ordem`),
-        sbFetch(`pratos?restaurante_id=eq.${restauranteId}&select=*`),
+        sbFetch(`categorias?restaurante_id=eq.${rId}&order=ordem`),
+        sbFetch(`pratos?restaurante_id=eq.${rId}&select=*`),
       ]);
       setCategorias(cats);
       setPratos(prts);
@@ -241,6 +308,7 @@ function AdminView({ token, onLogout }) {
       <div className="bg-stone-900 text-white px-5 py-4 flex items-center justify-between sticky top-0 z-10">
         <span className="font-semibold">Painel do restaurante</span>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowGroups(true)} className="text-xs bg-white/10 px-3 py-1.5 rounded-lg font-medium">Grupos</button>
           <button onClick={() => { setEditing(null); setShowForm(true); }}
             className="flex items-center gap-1.5 bg-white text-stone-900 px-3 py-1.5 rounded-lg text-sm font-medium">
             <Plus size={16} /> Novo prato
@@ -294,6 +362,15 @@ function AdminView({ token, onLogout }) {
       </div>
 
       {showForm && <ItemForm item={editing} categorias={categorias} onSave={save} onCancel={() => { setShowForm(false); setEditing(null); }} />}
+      {showGroups && (
+        <GroupManager
+          token={token}
+          categorias={categorias}
+          restauranteId={restauranteId}
+          onClose={() => setShowGroups(false)}
+          onChanged={carregar}
+        />
+      )}
     </div>
   );
 }
