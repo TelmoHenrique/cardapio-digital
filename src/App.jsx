@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -505,6 +505,121 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
   );
 }
 
+function OptionsManager({ token, prato, onClose }) {
+  const [opcoes, setOpcoes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [novo, setNovo] = useState({ nome: '', preco_adicional: '' });
+  const [saving, setSaving] = useState(false);
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const dados = await sbFetch(`opcoes_produto?prato_id=eq.${prato.id}&order=ordem`, { headers: authHeaders });
+      setOpcoes(dados || []);
+    } catch (e) {
+      setErro('Erro ao carregar opções: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const addOpcao = async () => {
+    if (!novo.nome.trim()) return;
+    setSaving(true);
+    setErro('');
+    try {
+      const proximaOrdem = opcoes.length > 0 ? Math.max(...opcoes.map(o => o.ordem || 0)) + 1 : 1;
+      await sbFetch('opcoes_produto', {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({
+          prato_id: prato.id,
+          nome: novo.nome.trim(),
+          preco_adicional: parseFloat(novo.preco_adicional) || 0,
+          disponivel: true,
+          ordem: proximaOrdem,
+        }),
+      });
+      setNovo({ nome: '', preco_adicional: '' });
+      carregar();
+    } catch (e) {
+      setErro('Erro ao adicionar: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  const toggleDisponivel = async (opcao) => {
+    try {
+      await sbFetch(`opcoes_produto?id=eq.${opcao.id}`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ disponivel: !opcao.disponivel }),
+      });
+      carregar();
+    } catch (e) { setErro('Erro ao atualizar: ' + e.message); }
+  };
+
+  const removerOpcao = async (opcao) => {
+    try {
+      await sbFetch(`opcoes_produto?id=eq.${opcao.id}`, { method: 'DELETE', headers: authHeaders });
+      carregar();
+    } catch (e) { setErro('Erro ao excluir: ' + e.message); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg font-semibold text-stone-900">Opções — {prato.nome}</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
+        </div>
+        <p className="text-xs text-stone-400 mb-4">Ex: sabores, tamanhos, adicionais. Só as marcadas como "Disponível" aparecem no cardápio.</p>
+
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-stone-400" /></div>
+        ) : (
+          <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+            {opcoes.map(op => (
+              <div key={op.id} className={`flex items-center justify-between rounded-lg px-3 py-2 gap-2 ${op.disponivel ? 'bg-stone-50' : 'bg-stone-100 opacity-60'}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-stone-800 truncate">{op.nome}</p>
+                  {op.preco_adicional > 0 && (
+                    <p className="text-xs text-emerald-600">+ {formatPreco(op.preco_adicional)}</p>
+                  )}
+                </div>
+                <button onClick={() => toggleDisponivel(op)}
+                  className={`text-xs px-2 py-1 rounded-md font-medium whitespace-nowrap ${op.disponivel ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-200 text-stone-500'}`}>
+                  {op.disponivel ? 'Disponível' : 'Em falta'}
+                </button>
+                <button onClick={() => removerOpcao(op)} className="text-stone-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+              </div>
+            ))}
+            {opcoes.length === 0 && <p className="text-sm text-stone-400">Nenhuma opção cadastrada ainda.</p>}
+          </div>
+        )}
+
+        {erro && <p className="text-sm text-red-600 mb-3">{erro}</p>}
+
+        <div className="border-t border-stone-200 pt-4 space-y-2">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Nova opção</p>
+          <div className="flex gap-2">
+            <input value={novo.nome} onChange={e => setNovo({...novo, nome: e.target.value})}
+              placeholder="Ex: Laranja" className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+            <input type="number" value={novo.preco_adicional} onChange={e => setNovo({...novo, preco_adicional: e.target.value})}
+              placeholder="+R$" className="w-20 border border-stone-300 rounded-lg px-2 py-2 text-sm text-stone-900" />
+          </div>
+          <button onClick={addOpcao} disabled={saving} className="w-full bg-stone-900 text-white text-sm py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar opção'}
+          </button>
+        </div>
+
+        <button onClick={onClose} className="w-full mt-4 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Fechar</button>
+      </div>
+    </div>
+  );
+}
+
 function AdminView({ token, onLogout }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -515,6 +630,7 @@ function AdminView({ token, onLogout }) {
   const [showForm, setShowForm] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [managingOptions, setManagingOptions] = useState(null);
   const [erro, setErro] = useState('');
   const [aba, setAba] = useState('cardapio'); // cardapio | chamados
   const [chamados, setChamados] = useState([]);
@@ -697,6 +813,7 @@ function AdminView({ token, onLogout }) {
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         <div className="flex gap-1.5">
+                          <button onClick={() => setManagingOptions(item)} className="text-stone-400 hover:text-stone-700 p-1" title="Opções/sabores"><ListPlus size={14} /></button>
                           <button onClick={() => { setEditing(item); setShowForm(true); }} className="text-stone-400 hover:text-stone-700 p-1"><Edit2 size={14} /></button>
                           <button onClick={() => remove(item.id)} className="text-stone-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>
                         </div>
@@ -735,6 +852,13 @@ function AdminView({ token, onLogout }) {
           onChanged={carregar}
         />
       )}
+      {managingOptions && (
+        <OptionsManager
+          token={token}
+          prato={managingOptions}
+          onClose={() => setManagingOptions(null)}
+        />
+      )}
     </div>
   );
 }
@@ -742,6 +866,19 @@ function AdminView({ token, onLogout }) {
 // ---------- ITEM DETALHE (cliente) ----------
 
 function ItemModal({ item, onClose }) {
+  const [opcoes, setOpcoes] = useState([]);
+  const [loadingOpcoes, setLoadingOpcoes] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const dados = await sbFetch(`opcoes_produto?prato_id=eq.${item.id}&disponivel=eq.true&order=ordem`);
+        setOpcoes(dados || []);
+      } catch (e) { /* silencioso: item sem opções cadastradas */ }
+      setLoadingOpcoes(false);
+    })();
+  }, [item.id]);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -757,6 +894,22 @@ function ItemModal({ item, onClose }) {
           </div>
           <p className="text-stone-500 text-sm leading-relaxed mt-2">{item.descricao}</p>
           <p className="text-lg font-semibold text-stone-900 mt-4">{formatPreco(item.preco)}</p>
+
+          {!loadingOpcoes && opcoes.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-stone-100">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Opções disponíveis</p>
+              <div className="space-y-1.5">
+                {opcoes.map(op => (
+                  <div key={op.id} className="flex items-center justify-between text-sm">
+                    <span className="text-stone-700">{op.nome}</span>
+                    <span className={op.preco_adicional > 0 ? 'text-emerald-600 font-medium' : 'text-stone-400'}>
+                      {op.preco_adicional > 0 ? `+ ${formatPreco(op.preco_adicional)}` : 'sem custo adicional'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
