@@ -711,17 +711,17 @@ function WaiterButton({ restauranteId, mesa }) {
   };
 
   return (
-    <div className="fixed bottom-20 right-4 z-20 flex flex-col items-end gap-1.5">
+    <div className="flex flex-col items-center gap-1.5">
       {erro && <p className="text-xs bg-red-600 text-white px-2.5 py-1 rounded-lg shadow">{erro}</p>}
       <button
         onClick={chamar}
         disabled={status !== 'idle'}
-        className={`flex items-center gap-2 px-4 py-3 rounded-full shadow-lg font-medium text-sm transition-colors ${
-          status === 'called' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-900 border border-stone-200'
+        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+          status === 'called' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-stone-500 border-stone-200'
         }`}>
-        {status === 'sending' && <Loader2 size={16} className="animate-spin" />}
-        {status === 'called' && <Check size={16} />}
-        {status === 'idle' && <Bell size={16} />}
+        {status === 'sending' && <Loader2 size={13} className="animate-spin" />}
+        {status === 'called' && <Check size={13} />}
+        {status === 'idle' && <Bell size={13} />}
         {status === 'called' ? 'Garçom a caminho' : 'Chamar garçom'}
       </button>
     </div>
@@ -818,6 +818,9 @@ function ClientView({ onAdmin }) {
             <p className="text-stone-400 text-xs mt-1 uppercase tracking-wide">Mesa {mesa}</p>
           )}
         </div>
+        <div className="mt-3">
+          <WaiterButton restauranteId={restaurante?.id} mesa={mesa} />
+        </div>
       </div>
 
       {/* Abas fixas de categoria */}
@@ -870,8 +873,6 @@ function ClientView({ onAdmin }) {
         })}
         {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
       </div>
-
-      <WaiterButton restauranteId={restaurante?.id} mesa={mesa} />
 
       {/* Rodapé fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
