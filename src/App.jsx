@@ -879,9 +879,23 @@ function ItemModal({ item, onClose }) {
     })();
   }, [item.id]);
 
+  // Trava o scroll da página de fundo enquanto o modal está aberto (evita bug de posicionamento no mobile)
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md rounded-2xl overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {item.foto_url && (
           <div className="w-full h-56 bg-stone-100 flex items-center justify-center overflow-hidden">
             <img src={item.foto_url} alt={item.nome} className="w-full h-full object-contain" />
