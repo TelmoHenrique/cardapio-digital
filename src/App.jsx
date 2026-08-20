@@ -1132,11 +1132,11 @@ function ClientView({ onAdmin }) {
 
       {/* Abas fixas de categoria */}
       {!busca && (
-      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-2 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
-            className={`px-4 py-2 text-sm font-semibold whitespace-nowrap rounded-full transition-all ${
-              activeCat === cat.id ? 'bg-stone-900 text-white shadow-md' : 'bg-stone-100 text-stone-500'
+            className={`px-4 py-2 text-sm font-semibold whitespace-nowrap rounded-full transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+              activeCat === cat.id ? 'bg-orange-500 text-white shadow-orange-200' : 'bg-white text-stone-500 border border-stone-200'
             }`}>
             {cat.nome}
           </button>
@@ -1183,10 +1183,8 @@ function ClientView({ onAdmin }) {
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
-              <div className="inline-flex items-center gap-2 mb-3.5 px-4 py-1.5 bg-white border border-orange-100 rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all duration-200">
-                <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
-                <h2 className="text-base font-bold text-orange-700">{cat.nome}</h2>
-              </div>
+              <h2 className="text-lg font-bold text-stone-900 mb-2 px-1">{cat.nome}</h2>
+              <div className="h-px bg-stone-200 mb-3.5" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {itensCat.map(item => (
                   <button key={item.id} onClick={() => setSelected(item)}
