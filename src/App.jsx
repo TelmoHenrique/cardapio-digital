@@ -5,6 +5,8 @@ const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
 const RESTAURANTE_SLUG = 'restaurante-raiz';
 
+// ---------- Helper: chamadas REST diretas ao Supabase ----------
+
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
@@ -37,6 +39,59 @@ async function sbAuth(path, body) {
 function formatPreco(v) {
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
+// Redimensiona e comprime a imagem no navegador antes de enviar (evita fotos pesadas)
+function comprimirImagem(file, maxDim = 1000, qualidade = 0.8) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('Falha ao comprimir imagem')),
+        'image/webp',
+        qualidade
+      );
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadFoto(file, token) {
+  const comprimida = await comprimirImagem(file);
+  const nomeArquivo = `${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-pratos/${nomeArquivo}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'image/webp',
+    },
+    body: comprimida,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error('Falha no upload: ' + err);
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/fotos-pratos/${nomeArquivo}`;
+}
+
+// ---------- LOGIN ----------
 
 function LoginScreen({ onLogin, onBack }) {
   const [email, setEmail] = useState('');
@@ -87,14 +142,32 @@ function LoginScreen({ onLogin, onBack }) {
   );
 }
 
-function ItemForm({ item, categorias, onSave, onCancel }) {
+// ---------- FORM DE ITEM ----------
+
+function ItemForm({ item, categorias, token, onSave, onCancel }) {
   const [form, setForm] = useState(item || { categoria_id: categorias[0]?.id || '', nome: '', preco: '', descricao: '', disponivel: true, destaque: false, foto_url: '' });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [erroFoto, setErroFoto] = useState('');
 
   const handleSave = async () => {
     setSaving(true);
     await onSave({ ...form, preco: parseFloat(form.preco) || 0 });
     setSaving(false);
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErroFoto('');
+    setUploading(true);
+    try {
+      const url = await uploadFoto(file, token);
+      setForm(f => ({ ...f, foto_url: url }));
+    } catch (err) {
+      setErroFoto('Não foi possível enviar a foto. Tente novamente.');
+    }
+    setUploading(false);
   };
 
   return (
@@ -107,13 +180,23 @@ function ItemForm({ item, categorias, onSave, onCancel }) {
 
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-stone-600 mb-1 block">Foto (URL)</label>
+            <label className="text-sm text-stone-600 mb-1 block">Foto do prato</label>
             <div className="flex gap-3 items-start">
-              <div className="w-20 h-20 rounded-lg bg-stone-100 overflow-hidden shrink-0 flex items-center justify-center border border-stone-200">
-                {form.foto_url ? <img src={form.foto_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-stone-300" />}
+              <div className="w-20 h-20 rounded-lg bg-stone-100 overflow-hidden shrink-0 flex items-center justify-center border border-stone-200 relative">
+                {uploading
+                  ? <Loader2 size={18} className="text-stone-400 animate-spin" />
+                  : form.foto_url
+                    ? <img src={form.foto_url} alt="" className="w-full h-full object-cover" />
+                    : <ImageIcon size={20} className="text-stone-300" />}
               </div>
-              <input value={form.foto_url || ''} onChange={e => setForm({...form, foto_url: e.target.value})}
-                className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" placeholder="Cole o link da foto" />
+              <div className="flex-1">
+                <label className="inline-flex items-center gap-1.5 bg-stone-900 text-white text-sm px-3 py-2 rounded-lg font-medium cursor-pointer">
+                  <Plus size={14} /> {form.foto_url ? 'Trocar foto' : 'Escolher foto'}
+                  <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
+                </label>
+                <p className="text-xs text-stone-400 mt-1.5">Do computador, celular ou galeria.</p>
+                {erroFoto && <p className="text-xs text-red-600 mt-1">{erroFoto}</p>}
+              </div>
             </div>
           </div>
 
@@ -153,7 +236,7 @@ function ItemForm({ item, categorias, onSave, onCancel }) {
 
         <div className="flex gap-3 mt-6">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Cancelar</button>
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || uploading}
             className="flex-1 py-2.5 rounded-lg bg-stone-900 text-white font-medium flex items-center justify-center gap-2">
             {saving ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
           </button>
@@ -162,6 +245,8 @@ function ItemForm({ item, categorias, onSave, onCancel }) {
     </div>
   );
 }
+
+// ---------- ADMIN ----------
 
 function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) {
   const [novo, setNovo] = useState('');
@@ -361,7 +446,7 @@ function AdminView({ token, onLogout }) {
         })}
       </div>
 
-      {showForm && <ItemForm item={editing} categorias={categorias} onSave={save} onCancel={() => { setShowForm(false); setEditing(null); }} />}
+      {showForm && <ItemForm item={editing} categorias={categorias} token={token} onSave={save} onCancel={() => { setShowForm(false); setEditing(null); }} />}
       {showGroups && (
         <GroupManager
           token={token}
@@ -374,6 +459,8 @@ function AdminView({ token, onLogout }) {
     </div>
   );
 }
+
+// ---------- ITEM DETALHE (cliente) ----------
 
 function ItemModal({ item, onClose }) {
   return (
@@ -392,6 +479,8 @@ function ItemModal({ item, onClose }) {
     </div>
   );
 }
+
+// ---------- CARDÁPIO (cliente) ----------
 
 function ClientView({ onAdmin }) {
   const [pratos, setPratos] = useState([]);
@@ -436,6 +525,7 @@ function ClientView({ onAdmin }) {
 
   return (
     <div className="min-h-screen bg-white pb-16">
+      {/* Abas fixas de categoria */}
       <div className="sticky top-0 bg-white border-b border-stone-200 flex overflow-x-auto z-10 shadow-sm">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
@@ -447,6 +537,7 @@ function ClientView({ onAdmin }) {
         ))}
       </div>
 
+      {/* Lista de pratos agrupada por categoria */}
       <div className="px-3 py-4 max-w-3xl mx-auto space-y-6">
         {categorias.map(cat => {
           const itensCat = pratos.filter(p => p.categoria_id === cat.id);
@@ -480,6 +571,7 @@ function ClientView({ onAdmin }) {
         {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
       </div>
 
+      {/* Rodapé fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-blue-600 text-white flex items-center justify-around py-3 text-xs font-medium">
         <div className="flex flex-col items-center gap-0.5">
           <ChefHat size={16} />
@@ -496,8 +588,10 @@ function ClientView({ onAdmin }) {
   );
 }
 
+// ---------- APP ----------
+
 export default function App() {
-  const [view, setView] = useState('client');
+  const [view, setView] = useState('client'); // client | login | admin
   const [token, setToken] = useState(null);
 
   if (view === 'admin' && token) {
