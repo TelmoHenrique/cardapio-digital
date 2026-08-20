@@ -662,8 +662,8 @@ function ClientView({ onAdmin }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
       </div>
 
-      {/* Avatar sobreposto + info */}
-      <div className="px-5 -mt-9 relative">
+      {/* Avatar sobreposto + info, centralizados */}
+      <div className="px-5 -mt-9 relative flex flex-col items-center text-center">
         <div className="w-[72px] h-[72px] rounded-full border-4 border-stone-50 bg-white overflow-hidden shadow-md">
           {restaurante?.logo_url
             ? <img src={restaurante.logo_url} alt="" className="w-full h-full object-cover" />
@@ -732,10 +732,9 @@ function ClientView({ onAdmin }) {
       </div>
 
       {/* Rodapé fixo */}
-      <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
-        <div className="flex flex-col items-center gap-0.5 opacity-90">
-          <ChefHat size={17} />
-          <span>Restaurante Raiz</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
+        <div className="opacity-90">
+          <ChefHat size={18} />
         </div>
         <button onClick={onAdmin} className="flex flex-col items-center gap-0.5 opacity-90 hover:opacity-100 transition-opacity">
           <Search size={17} />
