@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag } from 'lucide-react';
+import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -1394,6 +1394,7 @@ function ClientView({ onAdmin }) {
   const [busca, setBusca] = useState('');
   const [cart, setCart] = useState([]);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showContato, setShowContato] = useState(false);
   const mesa = new URLSearchParams(window.location.search).get('mesa');
 
   useEffect(() => {
@@ -1440,6 +1441,11 @@ function ClientView({ onAdmin }) {
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+
+        <button onClick={onAdmin} title="Painel do restaurante"
+          className="absolute top-3 left-3 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors">
+          <ChefHat size={15} />
+        </button>
 
         {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
           <div className="absolute top-3 right-3 flex gap-2">
@@ -1621,10 +1627,40 @@ function ClientView({ onAdmin }) {
       </div>
       )}
 
+      {/* Barra de navegação inferior */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-stretch justify-around px-2 pt-2 pb-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] z-30">
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="flex-1 flex flex-col items-center gap-1 py-1.5 mx-1 rounded-2xl text-orange-600 bg-orange-50 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <ReceiptText size={19} />
+          <span className="text-[11px] font-semibold">Cardápio</span>
+        </button>
+
+        {pedidoDisponivel && (
+          <button onClick={() => setShowCheckout(true)}
+            className="flex-1 relative flex flex-col items-center gap-1 py-1.5 mx-1 rounded-2xl text-stone-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
+            <ShoppingBag size={19} />
+            <span className="text-[11px] font-medium">Pedidos</span>
+            {cart.length > 0 && (
+              <span className="absolute top-0 right-4 bg-orange-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {cart.reduce((s, c) => s + c.qtd, 0)}
+              </span>
+            )}
+          </button>
+        )}
+
+        {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
+          <button onClick={() => setShowContato(true)}
+            className="flex-1 flex flex-col items-center gap-1 py-1.5 mx-1 rounded-2xl text-stone-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
+            <Phone size={19} />
+            <span className="text-[11px] font-medium">Contato</span>
+          </button>
+        )}
+      </div>
+
       {/* Barra flutuante do carrinho */}
       {pedidoDisponivel && cart.length > 0 && (
         <button onClick={() => setShowCheckout(true)}
-          className="fixed bottom-16 left-3 right-3 max-w-3xl mx-auto bg-stone-900 text-white rounded-2xl px-5 py-3.5 shadow-lg flex items-center justify-between z-20">
+          className="fixed bottom-20 left-3 right-3 max-w-3xl mx-auto bg-stone-900 text-white rounded-2xl px-5 py-3.5 shadow-lg flex items-center justify-between z-20">
           <span className="flex items-center gap-2 text-sm font-semibold">
             <ShoppingBag size={16} />
             {cart.reduce((s, c) => s + c.qtd, 0)} {cart.reduce((s, c) => s + c.qtd, 0) === 1 ? 'item' : 'itens'}
@@ -1635,16 +1671,36 @@ function ClientView({ onAdmin }) {
         </button>
       )}
 
-      {/* Rodapé fixo */}
-      <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
-        <div className="opacity-90">
-          <ChefHat size={18} />
+      {showContato && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowContato(false)}>
+          <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-stone-900">Contato</h3>
+              <button onClick={() => setShowContato(false)} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"><X size={16} /></button>
+            </div>
+            <div className="space-y-2.5">
+              {restaurante?.instagram_url && (
+                <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
+                    <Instagram size={17} className="text-pink-600" />
+                  </div>
+                  <span className="text-sm font-medium text-stone-800">Seguir no Instagram</span>
+                </a>
+              )}
+              {restaurante?.whatsapp_url && (
+                <a href={restaurante.whatsapp_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                    <MessageCircle size={17} className="text-emerald-600" />
+                  </div>
+                  <span className="text-sm font-medium text-stone-800">Conversar no WhatsApp</span>
+                </a>
+              )}
+            </div>
+          </div>
         </div>
-        <button onClick={onAdmin} className="flex flex-col items-center gap-0.5 opacity-90 hover:opacity-100 transition-opacity">
-          <Search size={17} />
-          <span>Painel</span>
-        </button>
-      </div>
+      )}
 
       {selected && (
         <ItemModal
