@@ -466,7 +466,11 @@ function ItemModal({ item, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-56 object-cover" />}
+        {item.foto_url && (
+          <div className="w-full h-56 bg-stone-100 flex items-center justify-center overflow-hidden">
+            <img src={item.foto_url} alt={item.nome} className="w-full h-full object-contain" />
+          </div>
+        )}
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-xl font-serif text-stone-900">{item.nome}</h3>
