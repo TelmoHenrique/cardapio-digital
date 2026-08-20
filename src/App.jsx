@@ -222,6 +222,12 @@ function ItemForm({ item, categorias, token, onSave, onCancel }) {
             <input type="number" value={form.preco} onChange={e => setForm({...form, preco: e.target.value})}
               className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" />
           </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Posição no grupo</label>
+            <input type="number" value={form.ordem ?? 0} onChange={e => setForm({...form, ordem: parseInt(e.target.value) || 0})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="0" />
+            <p className="text-xs text-stone-400 mt-1">Menor número aparece primeiro dentro do grupo.</p>
+          </div>
           <div className="flex items-center gap-6 pt-1">
             <label className="flex items-center gap-2 text-sm text-stone-700">
               <input type="checkbox" checked={form.disponivel} onChange={e => setForm({...form, disponivel: e.target.checked})} className="w-4 h-4" />
@@ -237,7 +243,7 @@ function ItemForm({ item, categorias, token, onSave, onCancel }) {
               <label className="text-sm text-stone-600 mb-1 block">Posição no carrossel de destaques</label>
               <input type="number" value={form.ordem_destaque ?? 0} onChange={e => setForm({...form, ordem_destaque: parseInt(e.target.value) || 0})}
                 className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="0" />
-              <p className="text-xs text-stone-400 mt-1">Menor número aparece primeiro. Ex: 1 = primeiro, 2 = segundo.</p>
+              <p className="text-xs text-stone-400 mt-1">Independente da posição no grupo. Menor número aparece primeiro no carrossel.</p>
             </div>
           )}
         </div>
@@ -260,6 +266,7 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
   const [novo, setNovo] = useState('');
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
+  const [ordens, setOrdens] = useState({});
   const authHeaders = { Authorization: `Bearer ${token}` };
   const ordenadas = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 
@@ -292,15 +299,10 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
     }
   };
 
-  const mover = async (index, direcao) => {
-    const alvo = ordenadas[index + direcao];
-    const atual = ordenadas[index];
-    if (!alvo) return;
+  const salvarOrdem = async (cat) => {
+    const novaOrdem = ordens[cat.id] ?? cat.ordem ?? 0;
     try {
-      await Promise.all([
-        sbFetch(`categorias?id=eq.${atual.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: alvo.ordem ?? 0 }) }),
-        sbFetch(`categorias?id=eq.${alvo.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: atual.ordem ?? 0 }) }),
-      ]);
+      await sbFetch(`categorias?id=eq.${cat.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: novaOrdem }) });
       onChanged();
     } catch (e) {
       setErro('Erro ao reordenar: ' + e.message);
@@ -314,18 +316,19 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
           <h3 className="text-lg font-semibold text-stone-900">Grupos do cardápio</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
         </div>
-        <p className="text-xs text-stone-400 mb-2">Use as setas para definir a ordem de exibição no cardápio.</p>
+        <p className="text-xs text-stone-400 mb-2">Defina o número de ordem de cada grupo. Menor número aparece primeiro.</p>
         <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
-          {ordenadas.map((cat, index) => (
-            <div key={cat.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2">
-              <span className="text-sm text-stone-800">{cat.nome}</span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => mover(index, -1)} disabled={index === 0}
-                  className="text-stone-400 disabled:opacity-20 hover:text-stone-700 px-1">▲</button>
-                <button onClick={() => mover(index, 1)} disabled={index === ordenadas.length - 1}
-                  className="text-stone-400 disabled:opacity-20 hover:text-stone-700 px-1">▼</button>
-                <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600 ml-1"><Trash2 size={14} /></button>
-              </div>
+          {ordenadas.map((cat) => (
+            <div key={cat.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2 gap-2">
+              <span className="text-sm text-stone-800 flex-1 truncate">{cat.nome}</span>
+              <input
+                type="number"
+                defaultValue={cat.ordem ?? 0}
+                onChange={e => setOrdens(o => ({ ...o, [cat.id]: parseInt(e.target.value) || 0 }))}
+                onBlur={() => salvarOrdem(cat)}
+                className="w-14 border border-stone-300 rounded-md px-2 py-1 text-sm text-stone-900 text-center"
+              />
+              <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button>
             </div>
           ))}
           {categorias.length === 0 && <p className="text-sm text-stone-400">Nenhum grupo ainda.</p>}
@@ -568,18 +571,6 @@ function AdminView({ token, onLogout }) {
     } catch (e) { setErro('Erro ao atualizar: ' + e.message); }
   };
 
-  const moverPrato = async (catItemsOrdenados, index, direcao) => {
-    const alvo = catItemsOrdenados[index + direcao];
-    const atual = catItemsOrdenados[index];
-    if (!alvo) return;
-    try {
-      await Promise.all([
-        sbFetch(`pratos?id=eq.${atual.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: alvo.ordem ?? 0 }) }),
-        sbFetch(`pratos?id=eq.${alvo.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: atual.ordem ?? 0 }) }),
-      ]);
-      carregar();
-    } catch (e) { setErro('Erro ao reordenar: ' + e.message); }
-  };
 
   if (loading) {
     return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
@@ -651,11 +642,10 @@ function AdminView({ token, onLogout }) {
                 {catItems.map((item, index) => (
                   <div key={item.id} className={`bg-white rounded-xl p-3 border ${item.disponivel ? 'border-stone-200' : 'border-stone-200 opacity-60'}`}>
                     <div className="flex items-start gap-3">
-                      <div className="flex flex-col items-center gap-0.5 pt-1 shrink-0">
-                        <button onClick={() => moverPrato(catItems, index, -1)} disabled={index === 0}
-                          className="text-stone-400 disabled:opacity-20 hover:text-stone-700 text-xs leading-none">▲</button>
-                        <button onClick={() => moverPrato(catItems, index, 1)} disabled={index === catItems.length - 1}
-                          className="text-stone-400 disabled:opacity-20 hover:text-stone-700 text-xs leading-none">▼</button>
+                      <div className="w-6 shrink-0 pt-1 text-center">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-stone-100 text-stone-500 text-xs font-semibold">
+                          {item.ordem ?? 0}
+                        </span>
                       </div>
                       <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0">
                         {item.foto_url ? <img src={item.foto_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-stone-300" /></div>}
