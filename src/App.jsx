@@ -904,7 +904,9 @@ function ItemModal({ item, onClose }) {
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-xl font-serif text-stone-900">{item.nome}</h3>
-            <button onClick={onClose} className="text-stone-400 shrink-0"><X size={20} /></button>
+            <button onClick={onClose} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 shrink-0 transition-colors">
+              <X size={16} />
+            </button>
           </div>
           <p className="text-stone-500 text-sm leading-relaxed mt-2">{item.descricao}</p>
           <p className="text-lg font-semibold text-stone-900 mt-4">{formatPreco(item.preco)}</p>
