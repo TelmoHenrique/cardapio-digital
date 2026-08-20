@@ -528,13 +528,26 @@ function ClientView({ onAdmin }) {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-16">
+    <div className="min-h-screen bg-stone-50 pb-20">
+      {/* Header com identidade do restaurante */}
+      <div className="bg-gradient-to-br from-stone-900 to-stone-800 text-white px-5 pt-7 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+            <ChefHat size={20} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">Restaurante Raiz</h1>
+            <p className="text-stone-400 text-xs mt-0.5">Cardápio digital</p>
+          </div>
+        </div>
+      </div>
+
       {/* Abas fixas de categoria */}
-      <div className="sticky top-0 bg-white border-b border-stone-200 flex overflow-x-auto z-10 shadow-sm">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-1.5 overflow-x-auto z-10 px-3 py-2.5 shadow-sm">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
-            className={`px-4 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              activeCat === cat.id ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-stone-500'
+            className={`px-4 py-2 text-sm font-semibold whitespace-nowrap rounded-full transition-all ${
+              activeCat === cat.id ? 'bg-stone-900 text-white shadow-md' : 'bg-stone-100 text-stone-500'
             }`}>
             {cat.nome}
           </button>
@@ -542,29 +555,34 @@ function ClientView({ onAdmin }) {
       </div>
 
       {/* Lista de pratos agrupada por categoria */}
-      <div className="px-3 py-4 max-w-3xl mx-auto space-y-6">
+      <div className="px-3 py-5 max-w-3xl mx-auto space-y-7">
         {categorias.map(cat => {
           const itensCat = pratos.filter(p => p.categoria_id === cat.id);
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
-              <h2 className="text-lg font-bold text-stone-900 mb-3 px-1">{cat.nome}</h2>
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <div className="w-1 h-5 bg-stone-900 rounded-full" />
+                <h2 className="text-lg font-bold text-stone-900">{cat.nome}</h2>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {itensCat.map(item => (
                   <button key={item.id} onClick={() => setSelected(item)}
-                    className="w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-xl p-3 shadow-sm text-left">
+                    className="group w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-stone-300 transition-all duration-200 text-left">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-semibold text-stone-900 text-[15px]">{item.nome}</p>
-                        {item.destaque && <Flame size={13} className="text-orange-500 shrink-0" />}
-                      </div>
-                      <p className="text-sm text-blue-600 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>
+                      <p className="font-semibold text-stone-900 text-[15px] leading-snug">{item.nome}</p>
+                      <p className="text-sm text-stone-500 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>
                       <p className="text-emerald-600 font-bold mt-1.5">{formatPreco(item.preco)}</p>
                     </div>
-                    <div className="w-24 h-24 rounded-lg bg-stone-100 overflow-hidden shrink-0">
+                    <div className="relative w-24 h-24 rounded-xl bg-stone-100 overflow-hidden shrink-0">
                       {item.foto_url
-                        ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+                        ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-stone-300" /></div>}
+                      {item.destaque && (
+                        <span className="absolute top-1 left-1 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow">
+                          <Flame size={10} /> Top
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -576,13 +594,13 @@ function ClientView({ onAdmin }) {
       </div>
 
       {/* Rodapé fixo */}
-      <div className="fixed bottom-0 left-0 right-0 bg-blue-600 text-white flex items-center justify-around py-3 text-xs font-medium">
-        <div className="flex flex-col items-center gap-0.5">
-          <ChefHat size={16} />
+      <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
+        <div className="flex flex-col items-center gap-0.5 opacity-90">
+          <ChefHat size={17} />
           <span>Restaurante Raiz</span>
         </div>
-        <button onClick={onAdmin} className="flex flex-col items-center gap-0.5">
-          <Search size={16} />
+        <button onClick={onAdmin} className="flex flex-col items-center gap-0.5 opacity-90 hover:opacity-100 transition-opacity">
+          <Search size={17} />
           <span>Painel</span>
         </button>
       </div>
