@@ -785,14 +785,14 @@ function ClientView({ onAdmin }) {
           <div className="absolute top-3 right-3 flex gap-2">
             {restaurante?.instagram_url && (
               <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
-                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors">
-                <Instagram size={15} />
+                className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition-transform">
+                <Instagram size={15} className="text-pink-600" />
               </a>
             )}
             {restaurante?.whatsapp_url && (
               <a href={restaurante.whatsapp_url} target="_blank" rel="noopener noreferrer"
-                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors">
-                <MessageCircle size={15} />
+                className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition-transform">
+                <MessageCircle size={15} className="text-emerald-600" />
               </a>
             )}
           </div>
