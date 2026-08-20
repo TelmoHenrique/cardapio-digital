@@ -447,14 +447,14 @@ function ClientView({ onAdmin }) {
         ))}
       </div>
 
-      <div className="px-3 py-4 max-w-lg mx-auto space-y-6">
+      <div className="px-3 py-4 max-w-3xl mx-auto space-y-6">
         {categorias.map(cat => {
           const itensCat = pratos.filter(p => p.categoria_id === cat.id);
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
               <h2 className="text-lg font-bold text-stone-900 mb-3 px-1">{cat.nome}</h2>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {itensCat.map(item => (
                   <button key={item.id} onClick={() => setSelected(item)}
                     className="w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-xl p-3 shadow-sm text-left">
