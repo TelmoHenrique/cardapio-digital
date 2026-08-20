@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -319,6 +319,8 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
     horario_texto: dadosAtuais?.horario_texto || '',
     logo_url: dadosAtuais?.logo_url || '',
     capa_url: dadosAtuais?.capa_url || '',
+    instagram_url: dadosAtuais?.instagram_url || '',
+    whatsapp_url: dadosAtuais?.whatsapp_url || '',
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCapa, setUploadingCapa] = useState(false);
@@ -406,6 +408,17 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
             <input value={form.horario_texto} onChange={e => setForm({...form, horario_texto: e.target.value})}
               className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Aberto até às 23h59" />
           </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block flex items-center gap-1.5"><Instagram size={13} /> Instagram</label>
+            <input value={form.instagram_url} onChange={e => setForm({...form, instagram_url: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="https://instagram.com/seurestaurante" />
+          </div>
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block flex items-center gap-1.5"><MessageCircle size={13} /> WhatsApp</label>
+            <input value={form.whatsapp_url} onChange={e => setForm({...form, whatsapp_url: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="https://wa.me/5511999999999" />
+            <p className="text-xs text-stone-400 mt-1">Formato: https://wa.me/55DDDNUMERO (só números, com código do país)</p>
+          </div>
         </div>
 
         {erro && <p className="text-sm text-red-600 mt-3">{erro}</p>}
@@ -433,13 +446,15 @@ function AdminView({ token, onLogout }) {
   const [showGroups, setShowGroups] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [erro, setErro] = useState('');
+  const [aba, setAba] = useState('cardapio'); // cardapio | chamados
+  const [chamados, setChamados] = useState([]);
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -455,7 +470,32 @@ function AdminView({ token, onLogout }) {
     setLoading(false);
   };
 
+  const carregarChamados = async () => {
+    if (!restauranteId) return;
+    try {
+      const dados = await sbFetch(`chamados?restaurante_id=eq.${restauranteId}&status=eq.pendente&order=criado_em.desc`, { headers: authHeaders });
+      setChamados(dados || []);
+    } catch (e) { /* silencioso, tenta de novo no próximo ciclo */ }
+  };
+
+  const atenderChamado = async (id) => {
+    try {
+      await sbFetch(`chamados?id=eq.${id}`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ status: 'atendido', atendido_em: new Date().toISOString() }),
+      });
+      carregarChamados();
+    } catch (e) { setErro('Erro ao atualizar chamado: ' + e.message); }
+  };
+
   useEffect(() => { carregar(); }, []);
+
+  useEffect(() => {
+    if (!restauranteId) return;
+    carregarChamados();
+    const interval = setInterval(carregarChamados, 5000);
+    return () => clearInterval(interval);
+  }, [restauranteId]);
 
   const save = async (item) => {
     try {
@@ -518,6 +558,45 @@ function AdminView({ token, onLogout }) {
 
       {erro && <p className="text-sm text-red-600 bg-red-50 px-5 py-2">{erro}</p>}
 
+      <div className="flex border-b border-stone-200 bg-white sticky top-[60px] z-10">
+        <button onClick={() => setAba('cardapio')}
+          className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${aba === 'cardapio' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
+          Cardápio
+        </button>
+        <button onClick={() => setAba('chamados')}
+          className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors relative ${aba === 'chamados' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
+          Chamados
+          {chamados.length > 0 && (
+            <span className="absolute top-1.5 right-[calc(50%-38px)] bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {chamados.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {aba === 'chamados' && (
+        <div className="p-4 max-w-2xl mx-auto space-y-2">
+          {chamados.length === 0 && (
+            <p className="text-stone-400 text-sm text-center py-10">Nenhum chamado pendente no momento.</p>
+          )}
+          {chamados.map(c => (
+            <div key={c.id} className="flex items-center justify-between bg-white border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <div>
+                <p className="font-semibold text-stone-900">Mesa {c.mesa}</p>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {new Date(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <button onClick={() => atenderChamado(c.id)}
+                className="flex items-center gap-1.5 bg-stone-900 text-white text-sm px-3 py-2 rounded-lg font-medium">
+                <Check size={14} /> Atendido
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {aba === 'cardapio' && (
       <div className="p-4 space-y-6 max-w-2xl mx-auto">
         {categorias.map(cat => {
           const catItems = pratos.filter(p => p.categoria_id === cat.id);
@@ -559,6 +638,7 @@ function AdminView({ token, onLogout }) {
           );
         })}
       </div>
+      )}
 
       {showForm && <ItemForm item={editing} categorias={categorias} token={token} onSave={save} onCancel={() => { setShowForm(false); setEditing(null); }} />}
       {showGroups && (
@@ -609,6 +689,45 @@ function ItemModal({ item, onClose }) {
 
 // ---------- CARDÁPIO (cliente) ----------
 
+function WaiterButton({ restauranteId, mesa }) {
+  const [status, setStatus] = useState('idle'); // idle | sending | called
+  const [erro, setErro] = useState('');
+
+  const chamar = async () => {
+    if (!restauranteId) return;
+    setStatus('sending');
+    setErro('');
+    try {
+      await sbFetch('chamados', {
+        method: 'POST',
+        body: JSON.stringify({ restaurante_id: restauranteId, mesa: mesa || 'Não informada' }),
+      });
+      setStatus('called');
+      setTimeout(() => setStatus('idle'), 30000); // libera de novo depois de 30s
+    } catch (e) {
+      setErro('Não foi possível chamar. Tente de novo.');
+      setStatus('idle');
+    }
+  };
+
+  return (
+    <div className="fixed bottom-20 right-4 z-20 flex flex-col items-end gap-1.5">
+      {erro && <p className="text-xs bg-red-600 text-white px-2.5 py-1 rounded-lg shadow">{erro}</p>}
+      <button
+        onClick={chamar}
+        disabled={status !== 'idle'}
+        className={`flex items-center gap-2 px-4 py-3 rounded-full shadow-lg font-medium text-sm transition-colors ${
+          status === 'called' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-900 border border-stone-200'
+        }`}>
+        {status === 'sending' && <Loader2 size={16} className="animate-spin" />}
+        {status === 'called' && <Check size={16} />}
+        {status === 'idle' && <Bell size={16} />}
+        {status === 'called' ? 'Garçom a caminho' : 'Chamar garçom'}
+      </button>
+    </div>
+  );
+}
+
 function ClientView({ onAdmin }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -617,11 +736,12 @@ function ClientView({ onAdmin }) {
   const [erro, setErro] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [selected, setSelected] = useState(null);
+  const mesa = new URLSearchParams(window.location.search).get('mesa');
 
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto`);
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -660,6 +780,23 @@ function ClientView({ onAdmin }) {
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+
+        {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
+          <div className="absolute top-3 right-3 flex gap-2">
+            {restaurante?.instagram_url && (
+              <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
+                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors">
+                <Instagram size={15} />
+              </a>
+            )}
+            {restaurante?.whatsapp_url && (
+              <a href={restaurante.whatsapp_url} target="_blank" rel="noopener noreferrer"
+                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors">
+                <MessageCircle size={15} />
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Avatar sobreposto + info, centralizados */}
@@ -676,6 +813,9 @@ function ClientView({ onAdmin }) {
           )}
           {restaurante?.horario_texto && (
             <p className="text-emerald-600 text-sm font-medium mt-0.5">{restaurante.horario_texto}</p>
+          )}
+          {mesa && (
+            <p className="text-stone-400 text-xs mt-1 uppercase tracking-wide">Mesa {mesa}</p>
           )}
         </div>
       </div>
@@ -730,6 +870,8 @@ function ClientView({ onAdmin }) {
         })}
         {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
       </div>
+
+      <WaiterButton restauranteId={restaurante?.id} mesa={mesa} />
 
       {/* Rodapé fixo */}
       <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white flex items-center justify-around py-3.5 text-xs font-medium shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
