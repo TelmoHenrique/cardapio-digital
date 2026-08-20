@@ -1028,7 +1028,7 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
       {/* Capa */}
-      <div className="relative h-40 bg-stone-800">
+      <div className="relative h-40 bg-stone-800 rounded-b-[28px] overflow-hidden">
         {restaurante?.capa_url && (
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
@@ -1183,9 +1183,9 @@ function ClientView({ onAdmin }) {
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <div className="w-1 h-5 bg-stone-900 rounded-full" />
-                <h2 className="text-lg font-bold text-stone-900">{cat.nome}</h2>
+              <div className="inline-flex items-center gap-2 mb-3.5 px-4 py-1.5 bg-white border border-orange-100 rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all duration-200">
+                <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                <h2 className="text-base font-bold text-orange-700">{cat.nome}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {itensCat.map(item => (
