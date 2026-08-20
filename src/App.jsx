@@ -261,6 +261,7 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
   const authHeaders = { Authorization: `Bearer ${token}` };
+  const ordenadas = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 
   const addGroup = async () => {
     if (!novo.trim()) return;
@@ -291,6 +292,21 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
     }
   };
 
+  const mover = async (index, direcao) => {
+    const alvo = ordenadas[index + direcao];
+    const atual = ordenadas[index];
+    if (!alvo) return;
+    try {
+      await Promise.all([
+        sbFetch(`categorias?id=eq.${atual.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: alvo.ordem ?? 0 }) }),
+        sbFetch(`categorias?id=eq.${alvo.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: atual.ordem ?? 0 }) }),
+      ]);
+      onChanged();
+    } catch (e) {
+      setErro('Erro ao reordenar: ' + e.message);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6">
@@ -298,11 +314,18 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
           <h3 className="text-lg font-semibold text-stone-900">Grupos do cardápio</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
         </div>
+        <p className="text-xs text-stone-400 mb-2">Use as setas para definir a ordem de exibição no cardápio.</p>
         <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
-          {categorias.map(cat => (
+          {ordenadas.map((cat, index) => (
             <div key={cat.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2">
               <span className="text-sm text-stone-800">{cat.nome}</span>
-              <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => mover(index, -1)} disabled={index === 0}
+                  className="text-stone-400 disabled:opacity-20 hover:text-stone-700 px-1">▲</button>
+                <button onClick={() => mover(index, 1)} disabled={index === ordenadas.length - 1}
+                  className="text-stone-400 disabled:opacity-20 hover:text-stone-700 px-1">▼</button>
+                <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600 ml-1"><Trash2 size={14} /></button>
+              </div>
             </div>
           ))}
           {categorias.length === 0 && <p className="text-sm text-stone-400">Nenhum grupo ainda.</p>}
@@ -545,6 +568,19 @@ function AdminView({ token, onLogout }) {
     } catch (e) { setErro('Erro ao atualizar: ' + e.message); }
   };
 
+  const moverPrato = async (catItemsOrdenados, index, direcao) => {
+    const alvo = catItemsOrdenados[index + direcao];
+    const atual = catItemsOrdenados[index];
+    if (!alvo) return;
+    try {
+      await Promise.all([
+        sbFetch(`pratos?id=eq.${atual.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: alvo.ordem ?? 0 }) }),
+        sbFetch(`pratos?id=eq.${alvo.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ ordem: atual.ordem ?? 0 }) }),
+      ]);
+      carregar();
+    } catch (e) { setErro('Erro ao reordenar: ' + e.message); }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
   }
@@ -607,14 +643,20 @@ function AdminView({ token, onLogout }) {
       {aba === 'cardapio' && (
       <div className="p-4 space-y-6 max-w-2xl mx-auto">
         {categorias.map(cat => {
-          const catItems = pratos.filter(p => p.categoria_id === cat.id);
+          const catItems = pratos.filter(p => p.categoria_id === cat.id).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
           return (
             <div key={cat.id}>
               <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">{cat.nome} · {catItems.length}</h3>
               <div className="space-y-2">
-                {catItems.map(item => (
+                {catItems.map((item, index) => (
                   <div key={item.id} className={`bg-white rounded-xl p-3 border ${item.disponivel ? 'border-stone-200' : 'border-stone-200 opacity-60'}`}>
                     <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center gap-0.5 pt-1 shrink-0">
+                        <button onClick={() => moverPrato(catItems, index, -1)} disabled={index === 0}
+                          className="text-stone-400 disabled:opacity-20 hover:text-stone-700 text-xs leading-none">▲</button>
+                        <button onClick={() => moverPrato(catItems, index, 1)} disabled={index === catItems.length - 1}
+                          className="text-stone-400 disabled:opacity-20 hover:text-stone-700 text-xs leading-none">▼</button>
+                      </div>
                       <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0">
                         {item.foto_url ? <img src={item.foto_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-stone-300" /></div>}
                       </div>
@@ -875,7 +917,7 @@ function ClientView({ onAdmin }) {
       {/* Lista de pratos agrupada por categoria */}
       <div className="px-3 py-5 max-w-3xl mx-auto space-y-7">
         {categorias.map(cat => {
-          const itensCat = pratos.filter(p => p.categoria_id === cat.id);
+          const itensCat = pratos.filter(p => p.categoria_id === cat.id).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
