@@ -400,7 +400,6 @@ function ClientView({ onAdmin }) {
   const [erro, setErro] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [busca, setBusca] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -423,82 +422,72 @@ function ClientView({ onAdmin }) {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#FBFAF7] flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
   }
   if (erro) {
-    return <div className="min-h-screen bg-[#FBFAF7] flex items-center justify-center p-6 text-center text-stone-500 text-sm">{erro}</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center text-stone-500 text-sm">{erro}</div>;
   }
 
-  const destaques = pratos.filter(i => i.destaque);
-  const filtrados = busca
-    ? pratos.filter(i => i.nome.toLowerCase().includes(busca.toLowerCase()))
-    : pratos.filter(i => i.categoria_id === activeCat);
+  const scrollToCategory = (id) => {
+    setActiveCat(id);
+    const el = document.getElementById(`cat-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
-    <div className="min-h-screen bg-[#FBFAF7]">
-      <div className="bg-stone-900 text-white px-6 pt-8 pb-6">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400 mb-1">Mesa 12</p>
-        <h1 className="text-2xl font-serif">Restaurante Raiz</h1>
-        <p className="text-stone-400 text-sm mt-1">Cardápio conectado ao Supabase</p>
-      </div>
-
-      <div className="px-5 pt-4">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar prato..."
-            className="w-full bg-white border border-stone-200 rounded-full pl-9 pr-4 py-2.5 text-sm text-stone-900" />
-        </div>
-      </div>
-
-      {!busca && destaques.length > 0 && (
-        <div className="px-5 pt-5">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Flame size={14} className="text-orange-500" />
-            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Recomendados pelo chef</span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5">
-            {destaques.map(item => (
-              <button key={item.id} onClick={() => setSelected(item)} className="min-w-[180px] bg-white border border-stone-200 rounded-xl overflow-hidden shrink-0 text-left">
-                {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-28 object-cover" />}
-                <div className="p-3">
-                  <p className="font-medium text-stone-900 text-sm">{item.nome}</p>
-                  <p className="text-sm font-semibold text-stone-900 mt-1">{formatPreco(item.preco)}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!busca && (
-        <div className="sticky top-0 bg-[#FBFAF7]/95 backdrop-blur-sm border-b border-stone-200 px-5 py-3 flex gap-2 overflow-x-auto z-10 mt-2">
-          {categorias.map(cat => (
-            <button key={cat.id} onClick={() => setActiveCat(cat.id)}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCat === cat.id ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'
-              }`}>
-              {cat.nome}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="px-5 py-5 grid grid-cols-2 gap-3 max-w-lg mx-auto">
-        {filtrados.map(item => (
-          <button key={item.id} onClick={() => setSelected(item)} className="bg-white border border-stone-200 rounded-xl overflow-hidden text-left">
-            {item.foto_url && <img src={item.foto_url} alt={item.nome} className="w-full h-24 object-cover" />}
-            <div className="p-3">
-              <p className="font-medium text-stone-900 text-sm leading-tight">{item.nome}</p>
-              <p className="text-sm font-semibold text-stone-900 mt-1.5">{formatPreco(item.preco)}</p>
-            </div>
+    <div className="min-h-screen bg-white pb-16">
+      <div className="sticky top-0 bg-white border-b border-stone-200 flex overflow-x-auto z-10 shadow-sm">
+        {categorias.map(cat => (
+          <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
+            className={`px-4 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              activeCat === cat.id ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-stone-500'
+            }`}>
+            {cat.nome}
           </button>
         ))}
-        {filtrados.length === 0 && <p className="col-span-2 text-stone-400 text-sm text-center py-8">Nenhum prato encontrado.</p>}
       </div>
 
-      <div className="px-5 pb-8 pt-2 max-w-lg mx-auto">
-        <button onClick={onAdmin} className="w-full flex items-center justify-center gap-2 text-xs text-stone-400 py-3">
-          <ChefHat size={13} /> Acessar painel do restaurante
+      <div className="px-3 py-4 max-w-lg mx-auto space-y-6">
+        {categorias.map(cat => {
+          const itensCat = pratos.filter(p => p.categoria_id === cat.id);
+          if (itensCat.length === 0) return null;
+          return (
+            <div key={cat.id} id={`cat-${cat.id}`}>
+              <h2 className="text-lg font-bold text-stone-900 mb-3 px-1">{cat.nome}</h2>
+              <div className="space-y-3">
+                {itensCat.map(item => (
+                  <button key={item.id} onClick={() => setSelected(item)}
+                    className="w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-xl p-3 shadow-sm text-left">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-stone-900 text-[15px]">{item.nome}</p>
+                        {item.destaque && <Flame size={13} className="text-orange-500 shrink-0" />}
+                      </div>
+                      <p className="text-sm text-blue-600 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>
+                      <p className="text-emerald-600 font-bold mt-1.5">{formatPreco(item.preco)}</p>
+                    </div>
+                    <div className="w-24 h-24 rounded-lg bg-stone-100 overflow-hidden shrink-0">
+                      {item.foto_url
+                        ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-stone-300" /></div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-blue-600 text-white flex items-center justify-around py-3 text-xs font-medium">
+        <div className="flex flex-col items-center gap-0.5">
+          <ChefHat size={16} />
+          <span>Restaurante Raiz</span>
+        </div>
+        <button onClick={onAdmin} className="flex flex-col items-center gap-0.5">
+          <Search size={16} />
+          <span>Painel</span>
         </button>
       </div>
 
