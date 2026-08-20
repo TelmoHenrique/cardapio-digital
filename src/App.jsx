@@ -232,6 +232,14 @@ function ItemForm({ item, categorias, token, onSave, onCancel }) {
               Destaque
             </label>
           </div>
+          {form.destaque && (
+            <div>
+              <label className="text-sm text-stone-600 mb-1 block">Posição no carrossel de destaques</label>
+              <input type="number" value={form.ordem_destaque ?? 0} onChange={e => setForm({...form, ordem_destaque: parseInt(e.target.value) || 0})}
+                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="0" />
+              <p className="text-xs text-stone-400 mt-1">Menor número aparece primeiro. Ex: 1 = primeiro, 2 = segundo.</p>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">
@@ -831,7 +839,7 @@ function ClientView({ onAdmin }) {
             <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wide">Destaques da casa</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto px-5 pb-2 snap-x snap-mandatory scroll-pl-5">
-            {pratos.filter(p => p.destaque).map(item => (
+            {pratos.filter(p => p.destaque).sort((a, b) => (a.ordem_destaque ?? 0) - (b.ordem_destaque ?? 0)).map(item => (
               <button key={item.id} onClick={() => setSelected(item)}
                 className="snap-start shrink-0 w-36 bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left">
                 <div className="w-full h-28 bg-stone-100 relative">
