@@ -1220,9 +1220,9 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const enviarPedido = () => {
     if (!restaurante?.whatsapp_pedido_numero) return;
     setEnviando(true);
-    let msg = `🛎️ *Novo pedido — ${restaurante.nome}*\n`;
+    let msg = `🔔 *Novo pedido — ${restaurante.nome}*\n`;
     if (nome) msg += `👤 ${nome}\n`;
-    if (telefone) msg += `📱 ${telefone}\n`;
+    if (telefone) msg += `📞 ${telefone}\n`;
     if (tipoEntrega === 'mesa') {
       if (local) msg += `📍 ${local}\n`;
     } else {
@@ -1235,9 +1235,9 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
       msg += ` — ${formatPreco(totalItem(c))}\n`;
     });
     if (tipoEntrega === 'entrega') {
-      msg += `\n🛵 Taxa de entrega: ${taxaEntrega != null ? formatPreco(taxaEntrega) : 'a combinar'}\n`;
+      msg += `\n🚴 Taxa de entrega: ${taxaEntrega != null ? formatPreco(taxaEntrega) : 'a combinar'}\n`;
     }
-    msg += `\n💰 *Total: ${formatPreco(total)}${taxaIndisponivel ? ' + taxa a combinar' : ''}*\n`;
+    msg += `\n💵 *Total: ${formatPreco(total)}${taxaIndisponivel ? ' + taxa a combinar' : ''}*\n`;
     msg += `💳 Pagamento: ${pagamento}`;
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
