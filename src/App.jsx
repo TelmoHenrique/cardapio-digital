@@ -40,6 +40,13 @@ function formatPreco(v) {
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// O Supabase devolve timestamps sem indicar o fuso (ex: "2026-08-22T22:50:00"), e o
+// navegador interpretaria isso como hora local por engano. Forçamos a leitura como UTC.
+function parseDataUTC(valor) {
+  if (!valor) return new Date(NaN);
+  return new Date(valor.endsWith('Z') ? valor : valor + 'Z');
+}
+
 // Aceita tanto um link completo (https://wa.me/...) quanto só o número, e sempre devolve uma URL válida
 function whatsappHref(valor) {
   if (!valor) return null;
@@ -1209,7 +1216,7 @@ function AdminView({ token, onLogout }) {
                       <p className={`text-sm font-bold ${p.cancelado ? 'text-red-500 line-through' : 'text-emerald-700'}`}>{formatPreco(p.total)}</p>
                     </div>
                     <p className="text-xs text-stone-400 mb-1.5">
-                      {new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
+                      {parseDataUTC(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
                       {' · '}{p.tipo_entrega === 'mesa' ? p.local : `Entrega — ${p.local}`}
                       {' · '}{p.forma_pagamento}
                     </p>
@@ -1243,7 +1250,7 @@ function AdminView({ token, onLogout }) {
               <div>
                 <p className="font-semibold text-stone-900">Mesa {c.mesa}</p>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  {new Date(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
+                  {parseDataUTC(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
                 </p>
               </div>
               <button onClick={() => atenderChamado(c.id)}
