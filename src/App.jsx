@@ -1209,7 +1209,7 @@ function AdminView({ token, onLogout }) {
                       <p className={`text-sm font-bold ${p.cancelado ? 'text-red-500 line-through' : 'text-emerald-700'}`}>{formatPreco(p.total)}</p>
                     </div>
                     <p className="text-xs text-stone-400 mb-1.5">
-                      {new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
                       {' · '}{p.tipo_entrega === 'mesa' ? p.local : `Entrega — ${p.local}`}
                       {' · '}{p.forma_pagamento}
                     </p>
@@ -1243,7 +1243,7 @@ function AdminView({ token, onLogout }) {
               <div>
                 <p className="font-semibold text-stone-900">Mesa {c.mesa}</p>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  {new Date(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
                 </p>
               </div>
               <button onClick={() => atenderChamado(c.id)}
@@ -1861,18 +1861,19 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
             </div>
 
             <div className="space-y-3 mb-5">
-              <div>
-                <label className="text-sm text-stone-600 mb-1 block">Seu nome</label>
-                <input value={nome} onChange={e => setNome(e.target.value)}
-                  className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Nome" />
-              </div>
-
               {tipoEntrega === 'mesa' ? (
-                <div>
-                  <label className="text-sm text-stone-600 mb-1 block">Mesa / local</label>
-                  <input value={local} onChange={e => setLocal(e.target.value)}
-                    className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Mesa 5" />
-                </div>
+                <>
+                  <div>
+                    <label className="text-sm text-stone-600 mb-1 block">Seu nome</label>
+                    <input value={nome} onChange={e => setNome(e.target.value)}
+                      className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Nome" />
+                  </div>
+                  <div>
+                    <label className="text-sm text-stone-600 mb-1 block">Mesa / local</label>
+                    <input value={local} onChange={e => setLocal(e.target.value)}
+                      className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Ex: Mesa 5" />
+                  </div>
+                </>
               ) : (
                 <>
                   <div>
@@ -1892,6 +1893,12 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
                         }} className="text-xs text-stone-500 underline shrink-0 ml-2">Usar outro endereço</button>
                       </div>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-stone-600 mb-1 block">Seu nome</label>
+                    <input value={nome} onChange={e => setNome(e.target.value)}
+                      className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Nome" />
                   </div>
 
                   {!naoSeiCep ? (
