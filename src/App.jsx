@@ -991,6 +991,18 @@ function AdminView({ token, onLogout }) {
     setLoadingRelatorio(false);
   };
 
+  const alternarCancelamento = async (pedido) => {
+    try {
+      await sbFetch(`pedidos?id=eq.${pedido.id}`, {
+        method: 'PATCH', headers: authHeaders,
+        body: JSON.stringify({ cancelado: !pedido.cancelado }),
+      });
+      carregarRelatorio();
+    } catch (e) {
+      setErro('Erro ao atualizar pedido: ' + e.message);
+    }
+  };
+
   useEffect(() => {
     if (aba === 'relatorio' && restauranteId) carregarRelatorio();
   }, [aba, restauranteId, dataInicio, dataFim]);
@@ -1143,36 +1155,53 @@ function AdminView({ token, onLogout }) {
             <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-stone-400" /></div>
           ) : (
             <>
-              <div className="bg-stone-900 text-white rounded-xl p-4 mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-stone-400">Pedidos no período</p>
-                  <p className="text-2xl font-bold">{pedidosRelatorio.length}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-stone-400">Total vendido</p>
-                  <p className="text-2xl font-bold text-emerald-400">
-                    {formatPreco(pedidosRelatorio.reduce((s, p) => s + Number(p.total || 0), 0))}
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const validos = pedidosRelatorio.filter(p => !p.cancelado);
+                const cancelados = pedidosRelatorio.filter(p => p.cancelado);
+                return (
+                  <div className="bg-stone-900 text-white rounded-xl p-4 mb-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-stone-400">Pedidos válidos</p>
+                        <p className="text-2xl font-bold">{validos.length}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-stone-400">Total vendido</p>
+                        <p className="text-2xl font-bold text-emerald-400">
+                          {formatPreco(validos.reduce((s, p) => s + Number(p.total || 0), 0))}
+                        </p>
+                      </div>
+                    </div>
+                    {cancelados.length > 0 && (
+                      <p className="text-xs text-stone-400 mt-2 pt-2 border-t border-white/10">
+                        {cancelados.length} pedido{cancelados.length > 1 ? 's' : ''} cancelado{cancelados.length > 1 ? 's' : ''} — não contam no total
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 {pedidosRelatorio.map(p => (
-                  <div key={p.id} className="bg-white border border-stone-200 rounded-xl p-3.5">
-                    <div className="flex items-center justify-between mb-1.5">
+                  <div key={p.id} className={`bg-white border rounded-xl p-3.5 ${p.cancelado ? 'border-red-200 bg-red-50/40 opacity-70' : 'border-stone-200'}`}>
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
                       <p className="text-sm font-semibold text-stone-900">{p.cliente_nome || 'Cliente'}</p>
-                      <p className="text-sm font-bold text-emerald-700">{formatPreco(p.total)}</p>
+                      <p className={`text-sm font-bold ${p.cancelado ? 'text-red-500 line-through' : 'text-emerald-700'}`}>{formatPreco(p.total)}</p>
                     </div>
                     <p className="text-xs text-stone-400 mb-1.5">
                       {new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       {' · '}{p.tipo_entrega === 'mesa' ? p.local : `Entrega — ${p.local}`}
                       {' · '}{p.forma_pagamento}
                     </p>
-                    <div className="text-xs text-stone-600 space-y-0.5">
+                    <div className="text-xs text-stone-600 space-y-0.5 mb-2">
                       {(p.itens || []).map((it, idx) => (
                         <p key={idx}>{it.qtd}x {it.nome}{it.opcaoNome ? ` (${it.opcaoNome})` : ''}</p>
                       ))}
                     </div>
+                    <button onClick={() => alternarCancelamento(p)}
+                      className={`text-xs px-3 py-1.5 rounded-md font-medium ${p.cancelado ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                      {p.cancelado ? 'Reativar pedido' : 'Marcar como cancelado'}
+                    </button>
                   </div>
                 ))}
                 {pedidosRelatorio.length === 0 && (
