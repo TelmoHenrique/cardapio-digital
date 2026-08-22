@@ -49,6 +49,26 @@ function whatsappHref(valor) {
   return `https://wa.me/${digitos}`;
 }
 
+// Salva/recupera os dados do cliente no próprio navegador, para preencher automaticamente da próxima vez
+function chaveClienteStorage(restauranteId) {
+  return `cardapio_cliente_${restauranteId || 'geral'}`;
+}
+
+function carregarDadosCliente(restauranteId) {
+  try {
+    const raw = localStorage.getItem(chaveClienteStorage(restauranteId));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function salvarDadosCliente(restauranteId, dados) {
+  try {
+    localStorage.setItem(chaveClienteStorage(restauranteId), JSON.stringify(dados));
+  } catch (e) { /* navegador pode bloquear localStorage (modo privado); segue sem salvar */ }
+}
+
 // Calcula se o restaurante está aberto agora, considerando status manual, dias da semana e horário
 function calcularStatusAbertura(restaurante) {
   if (!restaurante) return null;
@@ -1648,6 +1668,61 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
       ].filter(Boolean).join(' — ')
     : (endereco.rua ? `${endereco.rua}, ${numero}${complemento ? ' - ' + complemento : ''} — ${endereco.bairro}, ${endereco.cidade}` : '');
 
+  // Preenche automaticamente com os dados da última compra, se houver
+  useEffect(() => {
+    if (!restaurante?.id) return;
+    const salvo = carregarDadosCliente(restaurante.id);
+    if (!salvo) return;
+    if (salvo.nome) setNome(salvo.nome);
+    if (salvo.telefone) setTelefone(salvo.telefone);
+    if (salvo.cep) {
+      setCep(salvo.cep);
+      setTimeout(() => { buscarCep(); }, 0);
+    }
+    if (salvo.numero) setNumero(salvo.numero);
+    if (salvo.complemento) setComplemento(salvo.complemento);
+    if (salvo.naoSeiCep) {
+      setNaoSeiCep(true);
+      if (salvo.enderecoLivre) setEnderecoLivre(salvo.enderecoLivre);
+      if (salvo.bairroLivre) setBairroLivre(salvo.bairroLivre);
+      if (salvo.bairroSelecionado) setBairroSelecionado(salvo.bairroSelecionado);
+    }
+  }, [restaurante?.id]);
+
+  // Quando os bairros carregam, tenta recalcular a taxa se um bairro salvo já estiver selecionado
+  useEffect(() => {
+    if (bairroSelecionado && bairroSelecionado !== '__outro__' && bairrosDisponiveis.length > 0) {
+      selecionarBairro(bairroSelecionado);
+    }
+  }, [bairrosDisponiveis]);
+
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  const [clienteEncontrado, setClienteEncontrado] = useState(false);
+
+  const buscarClientePorTelefone = async () => {
+    const digitos = telefone.replace(/\D/g, '');
+    if (digitos.length < 10 || !restaurante?.id) return;
+    setBuscandoCliente(true);
+    try {
+      const dados = await sbFetch(`clientes?restaurante_id=eq.${restaurante.id}&telefone=eq.${digitos}&select=*`);
+      if (dados && dados.length > 0) {
+        const c = dados[0];
+        setClienteEncontrado(true);
+        if (c.nome) setNome(c.nome);
+        if (c.cep) { setCep(c.cep); setTimeout(() => { buscarCep(); }, 0); }
+        if (c.numero) setNumero(c.numero);
+        if (c.complemento) setComplemento(c.complemento);
+        if (c.nao_sei_cep) {
+          setNaoSeiCep(true);
+          if (c.endereco_livre) setEnderecoLivre(c.endereco_livre);
+          if (c.bairro_livre) setBairroLivre(c.bairro_livre);
+          if (c.bairro_selecionado) setBairroSelecionado(c.bairro_selecionado);
+        }
+      }
+    } catch (e) { /* silencioso: cliente novo, sem cadastro ainda */ }
+    setBuscandoCliente(false);
+  };
+
   const podeEnviar = tipoEntrega === 'mesa'
     ? !!local
     : naoSeiCep
@@ -1699,6 +1774,38 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
       });
     } catch (e) {
       console.error('Erro ao registrar pedido:', e);
+    }
+
+    // Salva os dados do cliente neste navegador, para a próxima compra já vir preenchida
+    if (restaurante?.id) {
+      salvarDadosCliente(restaurante.id, {
+        nome, telefone, cep, numero, complemento,
+        naoSeiCep, enderecoLivre, bairroLivre, bairroSelecionado,
+      });
+
+      // Salva também no banco, vinculado ao telefone — funciona em qualquer aparelho
+      const digitosTelefone = telefone.replace(/\D/g, '');
+      if (digitosTelefone.length >= 10) {
+        try {
+          await sbFetch(`clientes?on_conflict=restaurante_id,telefone`, {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({
+              restaurante_id: restaurante.id,
+              telefone: digitosTelefone,
+              nome: nome || null,
+              cep: cep || null,
+              numero: numero || null,
+              complemento: complemento || null,
+              nao_sei_cep: naoSeiCep,
+              endereco_livre: enderecoLivre || null,
+              bairro_livre: bairroLivre || null,
+              bairro_selecionado: bairroSelecionado || null,
+              atualizado_em: new Date().toISOString(),
+            }),
+          });
+        } catch (e) { console.error('Erro ao salvar cadastro do cliente:', e); }
+      }
     }
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
@@ -1766,8 +1873,14 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
                 <>
                   <div>
                     <label className="text-sm text-stone-600 mb-1 block">Telefone / WhatsApp</label>
-                    <input value={telefone} onChange={e => setTelefone(e.target.value)}
-                      className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="(65) 99999-9999" />
+                    <div className="relative">
+                      <input value={telefone} onChange={e => { setTelefone(e.target.value); setClienteEncontrado(false); }} onBlur={buscarClientePorTelefone}
+                        className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="(65) 99999-9999" />
+                      {buscandoCliente && <Loader2 size={16} className="animate-spin text-stone-400 absolute right-3 top-1/2 -translate-y-1/2" />}
+                    </div>
+                    {clienteEncontrado && !buscandoCliente && (
+                      <p className="text-xs text-emerald-600 mt-1">✓ Dados preenchidos automaticamente do seu último pedido</p>
+                    )}
                   </div>
 
                   {!naoSeiCep ? (
