@@ -1700,8 +1700,8 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
       });
     } catch (e) {
       falhaRegistro = true;
-      setErroRegistro('DEBUG: ' + e.message);
       console.error('Erro ao registrar pedido:', e);
+      alert('DEBUG - Erro ao registrar pedido: ' + e.message);
     }
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
