@@ -48,27 +48,18 @@ function parseDataUTC(valor) {
 }
 
 // Transforma "1,2,3,4,5" em "Segunda a Sexta", agrupando dias consecutivos
-function formatarDiasFuncionamento(diasStr) {
-  if (!diasStr) return null;
-  const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-  const dias = diasStr.split(',').map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
-  if (dias.length === 0) return null;
-  if (dias.length === 7) return 'Todos os dias';
-
-  // Agrupa sequências consecutivas (considerando que a semana é circular: sáb-dom)
-  const grupos = [];
-  let atual = [dias[0]];
-  for (let i = 1; i < dias.length; i++) {
-    if (dias[i] === dias[i - 1] + 1) {
-      atual.push(dias[i]);
-    } else {
-      grupos.push(atual);
-      atual = [dias[i]];
-    }
-  }
-  grupos.push(atual);
-
-  return grupos.map(g => g.length === 1 ? nomes[g[0]] : `${nomes[g[0]]} a ${nomes[g[g.length - 1]]}`).join(', ');
+function listaHorarioSemanal(diasStr, horaAbertura, horaFechamento) {
+  const diasPermitidos = (diasStr || '0,1,2,3,4,5,6').split(',').map(Number);
+  const ordem = [1, 2, 3, 4, 5, 6, 0]; // Segunda...Domingo
+  const nomes = { 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado', 0: 'Domingo' };
+  return ordem.map(d => {
+    const aberto = diasPermitidos.includes(d);
+    return {
+      dia: nomes[d],
+      texto: aberto && horaAbertura && horaFechamento ? `${horaAbertura} às ${horaFechamento}` : 'Fechado',
+      aberto,
+    };
+  });
 }
 
 // Aceita tanto um link completo (https://wa.me/...) quanto só o número, e sempre devolve uma URL válida
@@ -2421,32 +2412,36 @@ function ClientView({ onAdmin }) {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowContato(false)}>
           <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-stone-900">Perfil da Loja</h3>
-              <button onClick={() => setShowContato(false)} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"><X size={16} /></button>
+              <h3 className="text-xl font-bold text-stone-900">Perfil da Loja</h3>
+              <button onClick={() => setShowContato(false)} className="w-9 h-9 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"><X size={18} /></button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {(restaurante?.hora_abertura && restaurante?.hora_fechamento) && (
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Clock size={16} className="text-stone-600" /></div>
-                  <div>
-                    <p className="text-sm font-semibold text-stone-900">Horário de atendimento</p>
-                    <p className="text-sm text-stone-500">{restaurante.hora_abertura} às {restaurante.hora_fechamento}</p>
-                    {formatarDiasFuncionamento(restaurante.dias_funcionamento) && (
-                      <p className="text-xs text-stone-400 mt-0.5">{formatarDiasFuncionamento(restaurante.dias_funcionamento)}</p>
-                    )}
+                  <div className="w-11 h-11 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Clock size={20} className="text-stone-600" /></div>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-stone-900 mb-1.5">Horário de atendimento</p>
+                    <div className="space-y-1">
+                      {listaHorarioSemanal(restaurante.dias_funcionamento, restaurante.hora_abertura, restaurante.hora_fechamento).map(d => (
+                        <div key={d.dia} className="flex items-center justify-between text-base">
+                          <span className="text-stone-600">{d.dia}</span>
+                          <span className={d.aberto ? 'text-stone-900 font-medium' : 'text-red-500 font-medium'}>{d.texto}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
 
               {restaurante?.formas_pagamento && (
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Wallet size={16} className="text-stone-600" /></div>
+                  <div className="w-11 h-11 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Wallet size={20} className="text-stone-600" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-stone-900 mb-1">Formas de pagamento</p>
+                    <p className="text-base font-bold text-stone-900 mb-1.5">Formas de pagamento</p>
                     <div className="flex flex-wrap gap-1.5">
                       {restaurante.formas_pagamento.split(',').filter(Boolean).map(forma => (
-                        <span key={forma} className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full">{forma}</span>
+                        <span key={forma} className="text-sm bg-stone-100 text-stone-700 px-2.5 py-1.5 rounded-full font-medium">{forma}</span>
                       ))}
                     </div>
                   </div>
@@ -2455,14 +2450,14 @@ function ClientView({ onAdmin }) {
 
               {(restaurante?.endereco_completo || restaurante?.endereco) && (
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><MapPin size={16} className="text-stone-600" /></div>
+                  <div className="w-11 h-11 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><MapPin size={20} className="text-stone-600" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-stone-900">Endereço</p>
-                    <p className="text-sm text-stone-500">{restaurante.endereco_completo || restaurante.endereco}</p>
+                    <p className="text-base font-bold text-stone-900">Endereço</p>
+                    <p className="text-base text-stone-600">{restaurante.endereco_completo || restaurante.endereco}</p>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurante.endereco_completo || restaurante.endereco)}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-orange-600 font-semibold underline decoration-orange-300 underline-offset-2 mt-1">
+                      className="inline-flex items-center gap-1 text-sm text-orange-600 font-bold underline decoration-orange-300 underline-offset-2 mt-1">
                       Ver no mapa
                     </a>
                   </div>
@@ -2473,27 +2468,27 @@ function ClientView({ onAdmin }) {
                 <div className="pt-2 border-t border-stone-100 space-y-2.5">
                   {restaurante?.instagram_url && (
                     <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
-                      <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
-                        <Instagram size={17} className="text-pink-600" />
+                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
+                        <Instagram size={19} className="text-pink-600" />
                       </div>
-                      <span className="text-sm font-medium text-stone-800">Seguir no Instagram</span>
+                      <span className="text-base font-medium text-stone-800">Seguir no Instagram</span>
                     </a>
                   )}
                   {restaurante?.whatsapp_url && (
                     <a href={whatsappHref(restaurante.whatsapp_url)} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
-                      <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                        <MessageCircle size={17} className="text-emerald-600" />
+                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3.5 hover:bg-stone-50 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                        <MessageCircle size={19} className="text-emerald-600" />
                       </div>
-                      <span className="text-sm font-medium text-stone-800">Conversar no WhatsApp</span>
+                      <span className="text-base font-medium text-stone-800">Conversar no WhatsApp</span>
                     </a>
                   )}
                 </div>
               )}
 
               {!restaurante?.hora_abertura && !restaurante?.formas_pagamento && !restaurante?.endereco_completo && !restaurante?.endereco && !restaurante?.instagram_url && !restaurante?.whatsapp_url && (
-                <p className="text-sm text-stone-400 text-center py-6">Nenhuma informação cadastrada ainda.</p>
+                <p className="text-base text-stone-400 text-center py-6">Nenhuma informação cadastrada ainda.</p>
               )}
             </div>
           </div>
