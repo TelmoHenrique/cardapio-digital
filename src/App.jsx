@@ -599,7 +599,7 @@ function OptionsManager({ token, prato, onClose }) {
   const [opcoes, setOpcoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
-  const [novo, setNovo] = useState({ nome: '', descricao: '', preco_adicional: '' });
+  const [novo, setNovo] = useState({ nome: '', descricao: '', preco_adicional: '', ordem: '' });
   const [editandoId, setEditandoId] = useState(null);
   const [saving, setSaving] = useState(false);
   const authHeaders = { Authorization: `Bearer ${token}` };
@@ -623,12 +623,13 @@ function OptionsManager({ token, prato, onClose }) {
       nome: opcao.nome,
       descricao: opcao.descricao || '',
       preco_adicional: opcao.preco_adicional ? String(opcao.preco_adicional) : '',
+      ordem: opcao.ordem != null ? String(opcao.ordem) : '',
     });
   };
 
   const cancelarEdicao = () => {
     setEditandoId(null);
-    setNovo({ nome: '', descricao: '', preco_adicional: '' });
+    setNovo({ nome: '', descricao: '', preco_adicional: '', ordem: '' });
   };
 
   const salvarOpcao = async () => {
@@ -643,10 +644,11 @@ function OptionsManager({ token, prato, onClose }) {
             nome: novo.nome.trim(),
             descricao: novo.descricao.trim() || null,
             preco_adicional: parseFloat(novo.preco_adicional) || 0,
+            ordem: novo.ordem !== '' ? parseInt(novo.ordem) : 0,
           }),
         });
       } else {
-        const proximaOrdem = opcoes.length > 0 ? Math.max(...opcoes.map(o => o.ordem || 0)) + 1 : 1;
+        const proximaOrdem = novo.ordem !== '' ? parseInt(novo.ordem) : (opcoes.length > 0 ? Math.max(...opcoes.map(o => o.ordem || 0)) + 1 : 1);
         await sbFetch('opcoes_produto', {
           method: 'POST', headers: authHeaders,
           body: JSON.stringify({
@@ -659,7 +661,7 @@ function OptionsManager({ token, prato, onClose }) {
           }),
         });
       }
-      setNovo({ nome: '', descricao: '', preco_adicional: '' });
+      setNovo({ nome: '', descricao: '', preco_adicional: '', ordem: '' });
       setEditandoId(null);
       carregar();
     } catch (e) {
@@ -701,6 +703,9 @@ function OptionsManager({ token, prato, onClose }) {
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
             {opcoes.map(op => (
               <div key={op.id} className={`flex items-center justify-between rounded-lg px-3 py-2 gap-2 ${editandoId === op.id ? 'bg-orange-50 border border-orange-200' : op.disponivel ? 'bg-stone-50' : 'bg-stone-100 opacity-60'}`}>
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-stone-200 text-stone-600 text-[10px] font-semibold shrink-0">
+                  {op.ordem ?? 0}
+                </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-stone-800 truncate">{op.nome}</p>
                   {op.descricao && <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{op.descricao}</p>}
@@ -735,6 +740,11 @@ function OptionsManager({ token, prato, onClose }) {
           <textarea value={novo.descricao} onChange={e => setNovo({...novo, descricao: e.target.value})}
             placeholder="O que compõe essa opção (opcional). Ex: Acompanha arroz, farofa, mandioca e vinagrete"
             className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900 h-16 resize-none" />
+          <div>
+            <label className="text-xs text-stone-500 mb-1 block">Posição na lista (menor número aparece primeiro)</label>
+            <input type="number" value={novo.ordem} onChange={e => setNovo({...novo, ordem: e.target.value})}
+              placeholder="Ex: 1" className="w-24 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+          </div>
           <div className="flex gap-2">
             {editandoId && (
               <button onClick={cancelarEdicao} className="flex-1 py-2 rounded-lg border border-stone-300 text-stone-600 text-sm font-medium">
