@@ -1590,6 +1590,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const [bairrosDisponiveis, setBairrosDisponiveis] = useState([]);
   const [bairroSelecionado, setBairroSelecionado] = useState('');
   const [enderecoLivre, setEnderecoLivre] = useState('');
+  const [ruaLivre, setRuaLivre] = useState('');
   const [bairroLivre, setBairroLivre] = useState('');
 
   useEffect(() => {
@@ -1663,8 +1664,8 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
 
   const enderecoCompleto = naoSeiCep
     ? [
+        ruaLivre && `${ruaLivre}, ${numero}${complemento ? ' - ' + complemento : ''}`,
         (bairroSelecionado === '__outro__' ? bairroLivre : bairroSelecionado) && `Bairro: ${bairroSelecionado === '__outro__' ? bairroLivre : bairroSelecionado}`,
-        enderecoLivre,
       ].filter(Boolean).join(' — ')
     : (endereco.rua ? `${endereco.rua}, ${numero}${complemento ? ' - ' + complemento : ''} — ${endereco.bairro}, ${endereco.cidade}` : '');
 
@@ -1683,6 +1684,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     if (salvo.complemento) setComplemento(salvo.complemento);
     if (salvo.naoSeiCep) {
       setNaoSeiCep(true);
+      if (salvo.ruaLivre) setRuaLivre(salvo.ruaLivre);
       if (salvo.enderecoLivre) setEnderecoLivre(salvo.enderecoLivre);
       if (salvo.bairroLivre) setBairroLivre(salvo.bairroLivre);
       if (salvo.bairroSelecionado) setBairroSelecionado(salvo.bairroSelecionado);
@@ -1714,6 +1716,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
         if (c.complemento) setComplemento(c.complemento);
         if (c.nao_sei_cep) {
           setNaoSeiCep(true);
+          if (c.rua_livre) setRuaLivre(c.rua_livre);
           if (c.endereco_livre) setEnderecoLivre(c.endereco_livre);
           if (c.bairro_livre) setBairroLivre(c.bairro_livre);
           if (c.bairro_selecionado) setBairroSelecionado(c.bairro_selecionado);
@@ -1726,7 +1729,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const podeEnviar = tipoEntrega === 'mesa'
     ? !!local
     : naoSeiCep
-      ? !!(telefone && enderecoLivre && bairroSelecionado && bairroSelecionado !== '__outro__' && taxaEntrega != null)
+      ? !!(telefone && ruaLivre && numero && bairroSelecionado && bairroSelecionado !== '__outro__' && taxaEntrega != null)
       : !!(telefone && endereco.rua && numero && taxaEntrega != null);
 
   const enviarPedido = async () => {
@@ -1780,7 +1783,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     if (restaurante?.id) {
       salvarDadosCliente(restaurante.id, {
         nome, telefone, cep, numero, complemento,
-        naoSeiCep, enderecoLivre, bairroLivre, bairroSelecionado,
+        naoSeiCep, ruaLivre, enderecoLivre, bairroLivre, bairroSelecionado,
       });
 
       // Salva também no banco, vinculado ao telefone — funciona em qualquer aparelho
@@ -1798,6 +1801,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
               numero: numero || null,
               complemento: complemento || null,
               nao_sei_cep: naoSeiCep,
+              rua_livre: ruaLivre || null,
               endereco_livre: enderecoLivre || null,
               bairro_livre: bairroLivre || null,
               bairro_selecionado: bairroSelecionado || null,
@@ -1879,7 +1883,14 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
                       {buscandoCliente && <Loader2 size={16} className="animate-spin text-stone-400 absolute right-3 top-1/2 -translate-y-1/2" />}
                     </div>
                     {clienteEncontrado && !buscandoCliente && (
-                      <p className="text-xs text-emerald-600 mt-1">✓ Dados preenchidos automaticamente do seu último pedido</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-emerald-600">✓ Dados preenchidos automaticamente do seu último pedido</p>
+                        <button onClick={() => {
+                          setCep(''); setEndereco({ rua: '', bairro: '', cidade: '' }); setNumero(''); setComplemento('');
+                          setRuaLivre(''); setBairroLivre(''); setBairroSelecionado(''); setTaxaEntrega(null); setTaxaIndisponivel(false);
+                          setClienteEncontrado(false);
+                        }} className="text-xs text-stone-500 underline shrink-0 ml-2">Usar outro endereço</button>
+                      </div>
                     )}
                   </div>
 
@@ -1959,13 +1970,26 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
 
                       <div>
                         <label className="text-sm text-stone-600 mb-1 block">
-                          Endereço completo (rua, número, complemento) <span className="text-red-600 font-semibold">*obrigatório</span>
+                          Rua <span className="text-red-600 font-semibold">*obrigatório</span>
                         </label>
-                        <textarea value={enderecoLivre} onChange={e => setEnderecoLivre(e.target.value)}
-                          className={`w-full border rounded-lg px-3 py-2 text-stone-900 h-16 resize-none ${
-                            !enderecoLivre ? 'border-red-300 bg-red-50/40' : 'border-stone-300'
-                          }`}
-                          placeholder="Ex: Rua das Palmeiras, 123, apto 4" />
+                        <input value={ruaLivre} onChange={e => setRuaLivre(e.target.value)}
+                          className={`w-full border rounded-lg px-3 py-2 text-stone-900 ${!ruaLivre ? 'border-red-300 bg-red-50/40' : 'border-stone-300'}`}
+                          placeholder="Ex: Rua das Palmeiras" />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="w-24">
+                          <label className="text-sm text-stone-600 mb-1 block">
+                            Número <span className="text-red-600 font-semibold">*</span>
+                          </label>
+                          <input value={numero} onChange={e => setNumero(e.target.value)}
+                            className={`w-full border rounded-lg px-3 py-2 text-stone-900 ${!numero ? 'border-red-300 bg-red-50/40' : 'border-stone-300'}`}
+                            placeholder="123" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm text-stone-600 mb-1 block">Complemento (opcional)</label>
+                          <input value={complemento} onChange={e => setComplemento(e.target.value)}
+                            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900" placeholder="Casa, apto, bloco..." />
+                        </div>
                       </div>
 
                       {taxaEntrega != null && bairroSelecionado && bairroSelecionado !== '__outro__' && (
