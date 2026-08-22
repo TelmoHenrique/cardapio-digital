@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone, Menu, User, Layers, Truck, Copy } from 'lucide-react';
+import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone, Menu, User, Layers, Truck, Copy, MapPin, Clock, Wallet } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -45,6 +45,30 @@ function formatPreco(v) {
 function parseDataUTC(valor) {
   if (!valor) return new Date(NaN);
   return new Date(valor.endsWith('Z') ? valor : valor + 'Z');
+}
+
+// Transforma "1,2,3,4,5" em "Segunda a Sexta", agrupando dias consecutivos
+function formatarDiasFuncionamento(diasStr) {
+  if (!diasStr) return null;
+  const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const dias = diasStr.split(',').map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+  if (dias.length === 0) return null;
+  if (dias.length === 7) return 'Todos os dias';
+
+  // Agrupa sequências consecutivas (considerando que a semana é circular: sáb-dom)
+  const grupos = [];
+  let atual = [dias[0]];
+  for (let i = 1; i < dias.length; i++) {
+    if (dias[i] === dias[i - 1] + 1) {
+      atual.push(dias[i]);
+    } else {
+      grupos.push(atual);
+      atual = [dias[i]];
+    }
+  }
+  grupos.push(atual);
+
+  return grupos.map(g => g.length === 1 ? nomes[g[0]] : `${nomes[g[0]]} a ${nomes[g[g.length - 1]]}`).join(', ');
 }
 
 // Aceita tanto um link completo (https://wa.me/...) quanto só o número, e sempre devolve uma URL válida
@@ -444,6 +468,8 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
     chamar_garcom_habilitado: dadosAtuais?.chamar_garcom_habilitado ?? true,
     status_manual: dadosAtuais?.status_manual || 'auto',
     dias_funcionamento: dadosAtuais?.dias_funcionamento || '0,1,2,3,4,5,6',
+    formas_pagamento: dadosAtuais?.formas_pagamento || '',
+    endereco_completo: dadosAtuais?.endereco_completo || '',
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCapa, setUploadingCapa] = useState(false);
@@ -571,6 +597,34 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
               <option value="fechado">Forçar fechado agora</option>
             </select>
             <p className="text-xs text-stone-400 mt-1">Use "Forçar" para abrir ou fechar a loja manualmente a qualquer momento, ignorando o horário.</p>
+          </div>
+
+          <div>
+            <label className="text-sm text-stone-600 mb-1 block">Endereço completo (para mostrar no mapa)</label>
+            <textarea value={form.endereco_completo} onChange={e => setForm({...form, endereco_completo: e.target.value})}
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-stone-900 h-16 resize-none"
+              placeholder="Ex: Rua Desembargador Costa Ribeiro, 47, Dom Aquino, Cuiabá - MT" />
+            <p className="text-xs text-stone-400 mt-1">O cliente vai poder abrir esse endereço direto no Google Maps.</p>
+          </div>
+
+          <div>
+            <label className="text-sm text-stone-600 mb-1.5 block">Formas de pagamento aceitas</label>
+            <div className="flex flex-wrap gap-1.5">
+              {['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Vale-refeição'].map(forma => {
+                const ativas = form.formas_pagamento ? form.formas_pagamento.split(',') : [];
+                const ativa = ativas.includes(forma);
+                return (
+                  <button key={forma} type="button"
+                    onClick={() => {
+                      const novas = ativa ? ativas.filter(f => f !== forma) : [...ativas, forma];
+                      setForm({ ...form, formas_pagamento: novas.join(',') });
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${ativa ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                    {forma}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -967,7 +1021,7 @@ function AdminView({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -2084,7 +2138,7 @@ function ClientView({ onAdmin }) {
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento`);
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -2341,13 +2395,11 @@ function ClientView({ onAdmin }) {
           </button>
         )}
 
-        {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
-          <button onClick={() => setShowContato(true)}
-            className="flex-1 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
-            <Phone size={20} />
-            <span className="text-[11px] font-medium">Contato</span>
-          </button>
-        )}
+        <button onClick={() => setShowContato(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
+          <Phone size={20} />
+          <span className="text-[11px] font-medium">Perfil</span>
+        </button>
       </div>
 
       {/* Barra flutuante do carrinho */}
@@ -2367,29 +2419,81 @@ function ClientView({ onAdmin }) {
 
       {showContato && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowContato(false)}>
-          <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-stone-900">Contato</h3>
+              <h3 className="text-lg font-semibold text-stone-900">Perfil da Loja</h3>
               <button onClick={() => setShowContato(false)} className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500"><X size={16} /></button>
             </div>
-            <div className="space-y-2.5">
-              {restaurante?.instagram_url && (
-                <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
-                    <Instagram size={17} className="text-pink-600" />
+
+            <div className="space-y-4">
+              {(restaurante?.hora_abertura && restaurante?.hora_fechamento) && (
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Clock size={16} className="text-stone-600" /></div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900">Horário de atendimento</p>
+                    <p className="text-sm text-stone-500">{restaurante.hora_abertura} às {restaurante.hora_fechamento}</p>
+                    {formatarDiasFuncionamento(restaurante.dias_funcionamento) && (
+                      <p className="text-xs text-stone-400 mt-0.5">{formatarDiasFuncionamento(restaurante.dias_funcionamento)}</p>
+                    )}
                   </div>
-                  <span className="text-sm font-medium text-stone-800">Seguir no Instagram</span>
-                </a>
+                </div>
               )}
-              {restaurante?.whatsapp_url && (
-                <a href={whatsappHref(restaurante.whatsapp_url)} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                    <MessageCircle size={17} className="text-emerald-600" />
+
+              {restaurante?.formas_pagamento && (
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><Wallet size={16} className="text-stone-600" /></div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900 mb-1">Formas de pagamento</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {restaurante.formas_pagamento.split(',').filter(Boolean).map(forma => (
+                        <span key={forma} className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full">{forma}</span>
+                      ))}
+                    </div>
                   </div>
-                  <span className="text-sm font-medium text-stone-800">Conversar no WhatsApp</span>
-                </a>
+                </div>
+              )}
+
+              {(restaurante?.endereco_completo || restaurante?.endereco) && (
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center shrink-0"><MapPin size={16} className="text-stone-600" /></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-stone-900">Endereço</p>
+                    <p className="text-sm text-stone-500">{restaurante.endereco_completo || restaurante.endereco}</p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurante.endereco_completo || restaurante.endereco)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-orange-600 font-semibold underline decoration-orange-300 underline-offset-2 mt-1">
+                      Ver no mapa
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
+                <div className="pt-2 border-t border-stone-100 space-y-2.5">
+                  {restaurante?.instagram_url && (
+                    <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
+                        <Instagram size={17} className="text-pink-600" />
+                      </div>
+                      <span className="text-sm font-medium text-stone-800">Seguir no Instagram</span>
+                    </a>
+                  )}
+                  {restaurante?.whatsapp_url && (
+                    <a href={whatsappHref(restaurante.whatsapp_url)} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-3 border border-stone-200 rounded-xl px-4 py-3 hover:bg-stone-50 transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                        <MessageCircle size={17} className="text-emerald-600" />
+                      </div>
+                      <span className="text-sm font-medium text-stone-800">Conversar no WhatsApp</span>
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {!restaurante?.hora_abertura && !restaurante?.formas_pagamento && !restaurante?.endereco_completo && !restaurante?.endereco && !restaurante?.instagram_url && !restaurante?.whatsapp_url && (
+                <p className="text-sm text-stone-400 text-center py-6">Nenhuma informação cadastrada ainda.</p>
               )}
             </div>
           </div>
