@@ -600,6 +600,7 @@ function OptionsManager({ token, prato, onClose }) {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [novo, setNovo] = useState({ nome: '', descricao: '', preco_adicional: '' });
+  const [editandoId, setEditandoId] = useState(null);
   const [saving, setSaving] = useState(false);
   const authHeaders = { Authorization: `Bearer ${token}` };
 
@@ -616,27 +617,53 @@ function OptionsManager({ token, prato, onClose }) {
 
   useEffect(() => { carregar(); }, []);
 
-  const addOpcao = async () => {
+  const iniciarEdicao = (opcao) => {
+    setEditandoId(opcao.id);
+    setNovo({
+      nome: opcao.nome,
+      descricao: opcao.descricao || '',
+      preco_adicional: opcao.preco_adicional ? String(opcao.preco_adicional) : '',
+    });
+  };
+
+  const cancelarEdicao = () => {
+    setEditandoId(null);
+    setNovo({ nome: '', descricao: '', preco_adicional: '' });
+  };
+
+  const salvarOpcao = async () => {
     if (!novo.nome.trim()) return;
     setSaving(true);
     setErro('');
     try {
-      const proximaOrdem = opcoes.length > 0 ? Math.max(...opcoes.map(o => o.ordem || 0)) + 1 : 1;
-      await sbFetch('opcoes_produto', {
-        method: 'POST', headers: authHeaders,
-        body: JSON.stringify({
-          prato_id: prato.id,
-          nome: novo.nome.trim(),
-          descricao: novo.descricao.trim() || null,
-          preco_adicional: parseFloat(novo.preco_adicional) || 0,
-          disponivel: true,
-          ordem: proximaOrdem,
-        }),
-      });
+      if (editandoId) {
+        await sbFetch(`opcoes_produto?id=eq.${editandoId}`, {
+          method: 'PATCH', headers: authHeaders,
+          body: JSON.stringify({
+            nome: novo.nome.trim(),
+            descricao: novo.descricao.trim() || null,
+            preco_adicional: parseFloat(novo.preco_adicional) || 0,
+          }),
+        });
+      } else {
+        const proximaOrdem = opcoes.length > 0 ? Math.max(...opcoes.map(o => o.ordem || 0)) + 1 : 1;
+        await sbFetch('opcoes_produto', {
+          method: 'POST', headers: authHeaders,
+          body: JSON.stringify({
+            prato_id: prato.id,
+            nome: novo.nome.trim(),
+            descricao: novo.descricao.trim() || null,
+            preco_adicional: parseFloat(novo.preco_adicional) || 0,
+            disponivel: true,
+            ordem: proximaOrdem,
+          }),
+        });
+      }
       setNovo({ nome: '', descricao: '', preco_adicional: '' });
+      setEditandoId(null);
       carregar();
     } catch (e) {
-      setErro('Erro ao adicionar: ' + e.message);
+      setErro('Erro ao salvar: ' + e.message);
     }
     setSaving(false);
   };
@@ -654,6 +681,7 @@ function OptionsManager({ token, prato, onClose }) {
   const removerOpcao = async (opcao) => {
     try {
       await sbFetch(`opcoes_produto?id=eq.${opcao.id}`, { method: 'DELETE', headers: authHeaders });
+      if (editandoId === opcao.id) cancelarEdicao();
       carregar();
     } catch (e) { setErro('Erro ao excluir: ' + e.message); }
   };
@@ -672,7 +700,7 @@ function OptionsManager({ token, prato, onClose }) {
         ) : (
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
             {opcoes.map(op => (
-              <div key={op.id} className={`flex items-center justify-between rounded-lg px-3 py-2 gap-2 ${op.disponivel ? 'bg-stone-50' : 'bg-stone-100 opacity-60'}`}>
+              <div key={op.id} className={`flex items-center justify-between rounded-lg px-3 py-2 gap-2 ${editandoId === op.id ? 'bg-orange-50 border border-orange-200' : op.disponivel ? 'bg-stone-50' : 'bg-stone-100 opacity-60'}`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-stone-800 truncate">{op.nome}</p>
                   {op.descricao && <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{op.descricao}</p>}
@@ -684,7 +712,8 @@ function OptionsManager({ token, prato, onClose }) {
                   className={`text-xs px-2 py-1 rounded-md font-medium whitespace-nowrap ${op.disponivel ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-200 text-stone-500'}`}>
                   {op.disponivel ? 'Disponível' : 'Em falta'}
                 </button>
-                <button onClick={() => removerOpcao(op)} className="text-stone-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+                <button onClick={() => iniciarEdicao(op)} className="text-stone-400 hover:text-stone-700 shrink-0 w-8 h-8 flex items-center justify-center"><Edit2 size={15} /></button>
+                <button onClick={() => removerOpcao(op)} className="text-stone-400 hover:text-red-600 shrink-0 w-8 h-8 flex items-center justify-center"><Trash2 size={15} /></button>
               </div>
             ))}
             {opcoes.length === 0 && <p className="text-sm text-stone-400">Nenhuma opção cadastrada ainda.</p>}
@@ -694,7 +723,9 @@ function OptionsManager({ token, prato, onClose }) {
         {erro && <p className="text-sm text-red-600 mb-3">{erro}</p>}
 
         <div className="border-t border-stone-200 pt-4 space-y-2">
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Nova opção</p>
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+            {editandoId ? 'Editando opção' : 'Nova opção'}
+          </p>
           <div className="flex gap-2">
             <input value={novo.nome} onChange={e => setNovo({...novo, nome: e.target.value})}
               placeholder="Ex: Completo" className="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
@@ -704,9 +735,16 @@ function OptionsManager({ token, prato, onClose }) {
           <textarea value={novo.descricao} onChange={e => setNovo({...novo, descricao: e.target.value})}
             placeholder="O que compõe essa opção (opcional). Ex: Acompanha arroz, farofa, mandioca e vinagrete"
             className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900 h-16 resize-none" />
-          <button onClick={addOpcao} disabled={saving} className="w-full bg-stone-900 text-white text-sm py-2 rounded-lg font-medium flex items-center justify-center gap-2">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar opção'}
-          </button>
+          <div className="flex gap-2">
+            {editandoId && (
+              <button onClick={cancelarEdicao} className="flex-1 py-2 rounded-lg border border-stone-300 text-stone-600 text-sm font-medium">
+                Cancelar
+              </button>
+            )}
+            <button onClick={salvarOpcao} disabled={saving} className="flex-1 bg-stone-900 text-white text-sm py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : editandoId ? 'Salvar alteração' : 'Adicionar opção'}
+            </button>
+          </div>
         </div>
 
         <button onClick={onClose} className="w-full mt-4 py-2.5 rounded-lg border border-stone-300 text-stone-700 font-medium">Fechar</button>
