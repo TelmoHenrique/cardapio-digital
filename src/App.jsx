@@ -926,8 +926,14 @@ function AdminView({ token, onLogout }) {
   const [showDeliveryFees, setShowDeliveryFees] = useState(false);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [erro, setErro] = useState('');
-  const [aba, setAba] = useState('cardapio'); // cardapio | chamados
+  const [aba, setAba] = useState('cardapio'); // cardapio | chamados | relatorio
   const [chamados, setChamados] = useState([]);
+  const [pedidosRelatorio, setPedidosRelatorio] = useState([]);
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false);
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const seteDiasAtrasStr = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [dataInicio, setDataInicio] = useState(seteDiasAtrasStr);
+  const [dataFim, setDataFim] = useState(hojeStr);
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
@@ -967,6 +973,27 @@ function AdminView({ token, onLogout }) {
       carregarChamados();
     } catch (e) { setErro('Erro ao atualizar chamado: ' + e.message); }
   };
+
+  const carregarRelatorio = async () => {
+    if (!restauranteId) return;
+    setLoadingRelatorio(true);
+    try {
+      const inicioISO = new Date(dataInicio + 'T00:00:00').toISOString();
+      const fimISO = new Date(dataFim + 'T23:59:59').toISOString();
+      const dados = await sbFetch(
+        `pedidos?restaurante_id=eq.${restauranteId}&criado_em=gte.${inicioISO}&criado_em=lte.${fimISO}&order=criado_em.desc`,
+        { headers: authHeaders }
+      );
+      setPedidosRelatorio(dados || []);
+    } catch (e) {
+      setErro('Erro ao carregar relatório: ' + e.message);
+    }
+    setLoadingRelatorio(false);
+  };
+
+  useEffect(() => {
+    if (aba === 'relatorio' && restauranteId) carregarRelatorio();
+  }, [aba, restauranteId, dataInicio, dataFim]);
 
   useEffect(() => { carregar(); }, []);
 
@@ -1091,7 +1118,71 @@ function AdminView({ token, onLogout }) {
             </span>
           )}
         </button>
+        <button onClick={() => setAba('relatorio')}
+          className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${aba === 'relatorio' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
+          Relatório
+        </button>
       </div>
+
+      {aba === 'relatorio' && (
+        <div className="p-4 max-w-2xl mx-auto">
+          <div className="flex gap-2 mb-4">
+            <div className="flex-1">
+              <label className="text-xs text-stone-500 mb-1 block">De</label>
+              <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-stone-500 mb-1 block">Até</label>
+              <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
+                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900" />
+            </div>
+          </div>
+
+          {loadingRelatorio ? (
+            <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-stone-400" /></div>
+          ) : (
+            <>
+              <div className="bg-stone-900 text-white rounded-xl p-4 mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-stone-400">Pedidos no período</p>
+                  <p className="text-2xl font-bold">{pedidosRelatorio.length}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-stone-400">Total vendido</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {formatPreco(pedidosRelatorio.reduce((s, p) => s + Number(p.total || 0), 0))}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {pedidosRelatorio.map(p => (
+                  <div key={p.id} className="bg-white border border-stone-200 rounded-xl p-3.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm font-semibold text-stone-900">{p.cliente_nome || 'Cliente'}</p>
+                      <p className="text-sm font-bold text-emerald-700">{formatPreco(p.total)}</p>
+                    </div>
+                    <p className="text-xs text-stone-400 mb-1.5">
+                      {new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {' · '}{p.tipo_entrega === 'mesa' ? p.local : `Entrega — ${p.local}`}
+                      {' · '}{p.forma_pagamento}
+                    </p>
+                    <div className="text-xs text-stone-600 space-y-0.5">
+                      {(p.itens || []).map((it, idx) => (
+                        <p key={idx}>{it.qtd}x {it.nome}{it.opcaoNome ? ` (${it.opcaoNome})` : ''}</p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {pedidosRelatorio.length === 0 && (
+                  <p className="text-stone-400 text-sm text-center py-10">Nenhum pedido registrado nesse período.</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {aba === 'chamados' && (
         <div className="p-4 max-w-2xl mx-auto space-y-2">
@@ -1534,7 +1625,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
       ? !!(telefone && enderecoLivre && bairroSelecionado && bairroSelecionado !== '__outro__' && taxaEntrega != null)
       : !!(telefone && endereco.rua && numero && taxaEntrega != null);
 
-  const enviarPedido = () => {
+  const enviarPedido = async () => {
     if (!restaurante?.whatsapp_pedido_numero) return;
     setEnviando(true);
     const linha = '- - - - - - - - - -';
@@ -1558,6 +1649,25 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     }
     msg += `💵 *Total: ${formatPreco(total)}*\n`;
     msg += `💳 Pagamento: ${pagamento}`;
+
+    // Registra o pedido no histórico (não bloqueia o envio se falhar)
+    try {
+      await sbFetch('pedidos', {
+        method: 'POST',
+        body: JSON.stringify({
+          restaurante_id: restaurante.id,
+          cliente_nome: nome || null,
+          cliente_telefone: telefone || null,
+          tipo_entrega: tipoEntrega,
+          local: tipoEntrega === 'mesa' ? local : enderecoCompleto,
+          itens: cart.map(c => ({ nome: c.nome, qtd: c.qtd, opcaoNome: c.opcaoNome || null, precoUnit: c.precoBase + (c.opcaoPrecoAdicional || 0) })),
+          subtotal,
+          taxa_entrega: tipoEntrega === 'entrega' ? (taxaEntrega || 0) : 0,
+          total,
+          forma_pagamento: pagamento,
+        }),
+      });
+    } catch (e) { /* não impede o envio do pedido mesmo se o registro falhar */ }
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
     const url = `https://wa.me/${numeroRest}?text=${encodeURIComponent(msg)}`;
