@@ -1691,12 +1691,12 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     }
   }, [restaurante?.id]);
 
-  // Quando os bairros carregam, tenta recalcular a taxa se um bairro salvo já estiver selecionado
+  // Recalcula a taxa sempre que o bairro selecionado mudar (por CEP, cadastro salvo ou escolha manual)
   useEffect(() => {
     if (bairroSelecionado && bairroSelecionado !== '__outro__' && bairrosDisponiveis.length > 0) {
       selecionarBairro(bairroSelecionado);
     }
-  }, [bairrosDisponiveis]);
+  }, [bairrosDisponiveis, bairroSelecionado]);
 
   const [buscandoCliente, setBuscandoCliente] = useState(false);
   const [clienteEncontrado, setClienteEncontrado] = useState(false);
