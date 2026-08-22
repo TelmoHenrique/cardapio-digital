@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone, Menu, User, Layers, Truck } from 'lucide-react';
+import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone, Menu, User, Layers, Truck, Copy } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
@@ -1007,6 +1007,45 @@ function AdminView({ token, onLogout }) {
     } catch (e) { setErro('Erro ao excluir: ' + e.message); }
   };
 
+  const duplicarPrato = async (item) => {
+    setErro('');
+    try {
+      const [novoPrato] = await sbFetch('pratos', {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({
+          restaurante_id: restauranteId,
+          categoria_id: item.categoria_id,
+          nome: `${item.nome} (cópia)`,
+          descricao: item.descricao,
+          preco: item.preco,
+          foto_url: null,
+          disponivel: item.disponivel,
+          destaque: false,
+          ordem: item.ordem,
+        }),
+      });
+
+      // Copia também as opções/sabores do prato original, se houver
+      if (novoPrato) {
+        const opcoesOriginais = await sbFetch(`opcoes_produto?prato_id=eq.${item.id}`, { headers: authHeaders });
+        if (opcoesOriginais && opcoesOriginais.length > 0) {
+          const novasOpcoes = opcoesOriginais.map(op => ({
+            prato_id: novoPrato.id,
+            nome: op.nome,
+            descricao: op.descricao,
+            preco_adicional: op.preco_adicional,
+            disponivel: op.disponivel,
+            ordem: op.ordem,
+          }));
+          await sbFetch('opcoes_produto', { method: 'POST', headers: authHeaders, body: JSON.stringify(novasOpcoes) });
+        }
+      }
+      carregar();
+    } catch (e) {
+      setErro('Erro ao duplicar: ' + e.message);
+    }
+  };
+
   const toggleDisponivel = async (item) => {
     try {
       await sbFetch(`pratos?id=eq.${item.id}`, {
@@ -1108,6 +1147,7 @@ function AdminView({ token, onLogout }) {
                         <div className="flex gap-1.5">
                           <button onClick={() => setManagingOptions(item)} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg" title="Opções/sabores"><ListPlus size={21} /></button>
                           <button onClick={() => { setEditing(item); setShowForm(true); }} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg"><Edit2 size={21} /></button>
+                          <button onClick={() => duplicarPrato(item)} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg" title="Duplicar prato"><Copy size={21} /></button>
                           <button onClick={() => remove(item.id)} className="text-stone-500 hover:text-red-600 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg"><Trash2 size={21} /></button>
                         </div>
                         <button onClick={() => toggleDisponivel(item)}
