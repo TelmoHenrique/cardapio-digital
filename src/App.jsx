@@ -1566,6 +1566,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const [taxaEntrega, setTaxaEntrega] = useState(null); // null = não calculada, 0 = grátis, >0 = valor
   const [taxaIndisponivel, setTaxaIndisponivel] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [erroRegistro, setErroRegistro] = useState('');
   const [naoSeiCep, setNaoSeiCep] = useState(false);
   const [bairrosDisponiveis, setBairrosDisponiveis] = useState([]);
   const [bairroSelecionado, setBairroSelecionado] = useState('');
@@ -1680,6 +1681,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     msg += `💳 Pagamento: ${pagamento}`;
 
     // Registra o pedido no histórico (não bloqueia o envio se falhar)
+    let falhaRegistro = false;
     try {
       await sbFetch('pedidos', {
         method: 'POST',
@@ -1696,14 +1698,18 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
           forma_pagamento: pagamento,
         }),
       });
-    } catch (e) { /* não impede o envio do pedido mesmo se o registro falhar */ }
+    } catch (e) {
+      falhaRegistro = true;
+      setErroRegistro('DEBUG: ' + e.message);
+      console.error('Erro ao registrar pedido:', e);
+    }
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
     const url = `https://wa.me/${numeroRest}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setCart([]);
     setEnviando(false);
-    onClose();
+    if (!falhaRegistro) onClose();
   };
 
   return (
@@ -1898,6 +1904,12 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
               <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-center">
                 <p className="text-sm font-semibold text-red-700">A loja está fechada no momento</p>
                 <p className="text-xs text-red-500 mt-0.5">Não é possível finalizar o pedido agora. Tente novamente durante o horário de funcionamento.</p>
+              </div>
+            )}
+
+            {erroRegistro && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 mb-4">
+                <p className="text-xs font-mono text-amber-800 break-words">{erroRegistro}</p>
               </div>
             )}
 
