@@ -1566,7 +1566,6 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const [taxaEntrega, setTaxaEntrega] = useState(null); // null = não calculada, 0 = grátis, >0 = valor
   const [taxaIndisponivel, setTaxaIndisponivel] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [erroRegistro, setErroRegistro] = useState('');
   const [naoSeiCep, setNaoSeiCep] = useState(false);
   const [bairrosDisponiveis, setBairrosDisponiveis] = useState([]);
   const [bairroSelecionado, setBairroSelecionado] = useState('');
@@ -1681,10 +1680,10 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     msg += `💳 Pagamento: ${pagamento}`;
 
     // Registra o pedido no histórico (não bloqueia o envio se falhar)
-    let falhaRegistro = false;
     try {
       await sbFetch('pedidos', {
         method: 'POST',
+        headers: { 'Prefer': 'return=minimal' },
         body: JSON.stringify({
           restaurante_id: restaurante.id,
           cliente_nome: nome || null,
@@ -1699,9 +1698,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
         }),
       });
     } catch (e) {
-      falhaRegistro = true;
       console.error('Erro ao registrar pedido:', e);
-      alert('DEBUG - Erro ao registrar pedido: ' + e.message);
     }
 
     const numeroRest = restaurante.whatsapp_pedido_numero.replace(/\D/g, '');
@@ -1709,7 +1706,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
     window.open(url, '_blank');
     setCart([]);
     setEnviando(false);
-    if (!falhaRegistro) onClose();
+    onClose();
   };
 
   return (
@@ -1904,12 +1901,6 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
               <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-center">
                 <p className="text-sm font-semibold text-red-700">A loja está fechada no momento</p>
                 <p className="text-xs text-red-500 mt-0.5">Não é possível finalizar o pedido agora. Tente novamente durante o horário de funcionamento.</p>
-              </div>
-            )}
-
-            {erroRegistro && (
-              <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 mb-4">
-                <p className="text-xs font-mono text-amber-800 break-words">{erroRegistro}</p>
               </div>
             )}
 
