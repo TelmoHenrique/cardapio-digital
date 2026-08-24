@@ -3,7 +3,13 @@ import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as Imag
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
-const RESTAURANTE_SLUG = 'restaurante-raiz';
+const RESTAURANTE_SLUG = 'restaurante-raiz'; // usado só se a URL não tiver nenhum caminho (ex: menupapa.com.br sem nada depois)
+
+// Lê o "nome" do restaurante direto da URL (ex: menupapa.com.br/espeto-do-dito → "espeto-do-dito")
+function getSlugDaUrl() {
+  const caminho = window.location.pathname.replace(/^\/+|\/+$/g, ''); // remove barras do início/fim
+  return caminho || null;
+}
 
 // ---------- Sua marca (SaaS) — edite aqui ----------
 const MARCA_NOME = 'MENU PAPA';
@@ -2097,7 +2103,8 @@ function ClientView({ onAdmin }) {
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
+        const slugRestaurante = getSlugDaUrl() || RESTAURANTE_SLUG;
+        const rest = await sbFetch(`restaurantes?slug=eq.${slugRestaurante}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -2669,7 +2676,8 @@ export default function App() {
   const [view, setView] = useState('client'); // client | login | checking | admin | superadmin
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [manageSlug, setManageSlug] = useState(null);
+  const [manageSlug, setManageSlug] = useState(() => getSlugDaUrl());
+  const [viaSuperAdmin, setViaSuperAdmin] = useState(false);
 
   useEffect(() => {
     if (view !== 'checking' || !token || !userId) return;
@@ -2695,7 +2703,7 @@ export default function App() {
       <SuperAdminPanel
         token={token}
         onLogout={() => { setToken(null); setUserId(null); setView('client'); }}
-        onManage={(slug) => { setManageSlug(slug); setView('admin'); }}
+        onManage={(slug) => { setManageSlug(slug); setViaSuperAdmin(true); setView('admin'); }}
       />
     );
   }
@@ -2704,8 +2712,8 @@ export default function App() {
       <AdminView
         token={token}
         slugOverride={manageSlug}
-        onVoltarSuperAdmin={manageSlug ? () => { setManageSlug(null); setView('superadmin'); } : undefined}
-        onLogout={() => { setToken(null); setUserId(null); setManageSlug(null); setView('client'); }}
+        onVoltarSuperAdmin={viaSuperAdmin ? () => { setManageSlug(getSlugDaUrl()); setViaSuperAdmin(false); setView('superadmin'); } : undefined}
+        onLogout={() => { setToken(null); setUserId(null); setManageSlug(getSlugDaUrl()); setViaSuperAdmin(false); setView('client'); }}
       />
     );
   }
