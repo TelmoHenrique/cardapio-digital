@@ -2383,7 +2383,7 @@ function ClientView({ onAdmin }) {
       {/* Marca do SaaS, discreta no rodapé */}
       <div className="flex items-center justify-center gap-2 py-5 opacity-70">
         {MARCA_LOGO_URL && <img src={MARCA_LOGO_URL} alt="" className="w-5 h-5 rounded-full object-cover" />}
-        <span className="text-sm text-stone-500 font-medium">Cardápio via {MARCA_NOME}</span>
+        <span className="text-sm text-stone-500 font-medium">{MARCA_NOME}</span>
       </div>
 
       {/* Barra de navegação inferior */}
