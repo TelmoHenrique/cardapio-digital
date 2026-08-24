@@ -364,6 +364,8 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
   const [ordens, setOrdens] = useState({});
+  const [descricoes, setDescricoes] = useState({});
+  const [expandido, setExpandido] = useState(null);
   const authHeaders = { Authorization: `Bearer ${token}` };
   const ordenadas = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 
@@ -406,6 +408,16 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
     }
   };
 
+  const salvarDescricao = async (cat) => {
+    const novaDescricao = descricoes[cat.id] ?? cat.descricao ?? '';
+    try {
+      await sbFetch(`categorias?id=eq.${cat.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ descricao: novaDescricao || null }) });
+      onChanged();
+    } catch (e) {
+      setErro('Erro ao salvar descrição: ' + e.message);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6">
@@ -414,18 +426,35 @@ function GroupManager({ token, categorias, restauranteId, onClose, onChanged }) 
           <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={20} /></button>
         </div>
         <p className="text-xs text-stone-400 mb-2">Defina o número de ordem de cada grupo. Menor número aparece primeiro.</p>
-        <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+        <div className="space-y-2 mb-4 max-h-80 overflow-y-auto">
           {ordenadas.map((cat) => (
-            <div key={cat.id} className="flex items-center justify-between bg-stone-50 rounded-lg px-3 py-2 gap-2">
-              <span className="text-sm text-stone-800 flex-1 truncate">{cat.nome}</span>
-              <input
-                type="number"
-                defaultValue={cat.ordem ?? 0}
-                onChange={e => setOrdens(o => ({ ...o, [cat.id]: parseInt(e.target.value) || 0 }))}
-                onBlur={() => salvarOrdem(cat)}
-                className="w-14 border border-stone-300 rounded-md px-2 py-1 text-sm text-stone-900 text-center"
-              />
-              <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button>
+            <div key={cat.id} className="bg-stone-50 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-stone-800 flex-1 truncate">{cat.nome}</span>
+                <input
+                  type="number"
+                  defaultValue={cat.ordem ?? 0}
+                  onChange={e => setOrdens(o => ({ ...o, [cat.id]: parseInt(e.target.value) || 0 }))}
+                  onBlur={() => salvarOrdem(cat)}
+                  className="w-14 border border-stone-300 rounded-md px-2 py-1 text-sm text-stone-900 text-center"
+                />
+                <button onClick={() => setExpandido(expandido === cat.id ? null : cat.id)}
+                  className={`shrink-0 ${expandido === cat.id ? 'text-orange-600' : 'text-stone-400 hover:text-stone-700'}`} title="Descrição do grupo">
+                  <Edit2 size={14} />
+                </button>
+                <button onClick={() => removeGroup(cat)} className="text-stone-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+              </div>
+              {expandido === cat.id && (
+                <div className="mt-2">
+                  <textarea
+                    defaultValue={cat.descricao || ''}
+                    onChange={e => setDescricoes(d => ({ ...d, [cat.id]: e.target.value }))}
+                    onBlur={() => salvarDescricao(cat)}
+                    placeholder="Descrição opcional do grupo (ex: Pratos que acompanham arroz, farofa e vinagrete)"
+                    className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm text-stone-900 h-16 resize-none"
+                  />
+                </div>
+              )}
             </div>
           ))}
           {categorias.length === 0 && <p className="text-sm text-stone-400">Nenhum grupo ainda.</p>}
@@ -2334,7 +2363,8 @@ function ClientView({ onAdmin }) {
           if (itensCat.length === 0) return null;
           return (
             <div key={cat.id} id={`cat-${cat.id}`}>
-              <h2 className="text-lg font-bold text-stone-900 mb-2 px-1">{cat.nome}</h2>
+              <h2 className="text-lg font-bold text-stone-900 mb-1 px-1">{cat.nome}</h2>
+              {cat.descricao && <p className="text-sm text-stone-500 mb-2 px-1">{cat.descricao}</p>}
               <div className="h-px bg-stone-200 mb-3.5" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {itensCat.map(item => (
