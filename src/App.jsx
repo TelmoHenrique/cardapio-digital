@@ -2102,7 +2102,7 @@ function ClientView({ onAdmin }) {
 
   useEffect(() => {
     const inicio = Date.now();
-    const TEMPO_MINIMO_MS = 1000;
+    const TEMPO_MINIMO_MS = 1500;
 
     (async () => {
       try {
