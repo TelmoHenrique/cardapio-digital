@@ -2101,12 +2101,20 @@ function ClientView({ onAdmin }) {
   const acessoPainel = new URLSearchParams(window.location.search).get('painel') === '1';
 
   useEffect(() => {
+    const inicio = Date.now();
+    const TEMPO_MINIMO_MS = 1000;
+
     (async () => {
       try {
         const slugRestaurante = getSlugDaUrl() || RESTAURANTE_SLUG;
         const rest = await sbFetch(`restaurantes?slug=eq.${slugRestaurante}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
         const rst = rest[0];
-        if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
+        if (!rst) {
+          setErro('Restaurante não encontrado.');
+          const decorrido = Date.now() - inicio;
+          setTimeout(() => setLoading(false), Math.max(0, TEMPO_MINIMO_MS - decorrido));
+          return;
+        }
         setRestaurante(rst);
 
         try {
@@ -2124,7 +2132,8 @@ function ClientView({ onAdmin }) {
       } catch (e) {
         setErro('Erro ao carregar cardápio: ' + e.message);
       }
-      setLoading(false);
+      const decorrido = Date.now() - inicio;
+      setTimeout(() => setLoading(false), Math.max(0, TEMPO_MINIMO_MS - decorrido));
     })();
   }, []);
 
