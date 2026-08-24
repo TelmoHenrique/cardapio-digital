@@ -2167,7 +2167,7 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
       {/* Capa */}
-      <div className="relative h-56 bg-stone-800 overflow-hidden rounded-bl-[48px]">
+      <div className="relative h-56 bg-stone-800 overflow-hidden rounded-b-[48px]">
         {restaurante?.capa_url && (
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
