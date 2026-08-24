@@ -2622,8 +2622,17 @@ function SuperAdminPanel({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const dados = await sbFetch(`restaurantes?select=id,nome,slug,logo_url,licencas(id,status,expira_em)&order=nome`, { headers: authHeaders });
-      setRestaurantes(dados || []);
+      const [rests, lics] = await Promise.all([
+        sbFetch(`restaurantes?select=id,nome,slug,logo_url&order=nome`, { headers: authHeaders }),
+        sbFetch(`licencas?select=id,restaurante_id,status,expira_em`, { headers: authHeaders }),
+      ]);
+      const licPorRestaurante = {};
+      (lics || []).forEach(l => { licPorRestaurante[l.restaurante_id] = l; });
+      const combinado = (rests || []).map(r => ({
+        ...r,
+        licencas: licPorRestaurante[r.id] ? [licPorRestaurante[r.id]] : [],
+      }));
+      setRestaurantes(combinado);
     } catch (e) {
       setErro('Erro ao carregar restaurantes: ' + e.message);
     }
