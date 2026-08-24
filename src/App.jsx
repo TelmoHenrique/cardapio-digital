@@ -1005,7 +1005,7 @@ function DeliveryFeesManager({ token, restauranteId, onClose }) {
   );
 }
 
-function AdminView({ token, onLogout }) {
+function AdminView({ token, onLogout, slugOverride, onVoltarSuperAdmin }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [restauranteId, setRestauranteId] = useState(null);
@@ -1027,13 +1027,14 @@ function AdminView({ token, onLogout }) {
   const [dataInicio, setDataInicio] = useState(seteDiasAtrasStr);
   const [dataFim, setDataFim] = useState(hojeStr);
   const [licenca, setLicenca] = useState(null);
+  const slugAtual = slugOverride || RESTAURANTE_SLUG;
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${slugAtual}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -1092,7 +1093,7 @@ function AdminView({ token, onLogout }) {
 
   const save = async (item) => {
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${slugAtual}&select=id`);
       const restaurante_id = rest[0]?.id;
       if (item.id) {
         await sbFetch(`pratos?id=eq.${item.id}`, {
@@ -1178,8 +1179,15 @@ function AdminView({ token, onLogout }) {
     <div className="min-h-screen bg-stone-50">
       <div className="bg-stone-900 text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-10"
         style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
-        <span className="font-semibold text-[15px]">Painel do restaurante</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 min-w-0">
+          {onVoltarSuperAdmin && (
+            <button onClick={onVoltarSuperAdmin} className="text-stone-300 hover:text-white w-9 h-9 flex items-center justify-center shrink-0 active:scale-95 transition-transform">
+              <ArrowLeft size={19} />
+            </button>
+          )}
+          <span className="font-semibold text-[15px] truncate">{onVoltarSuperAdmin ? (restauranteDados?.nome || 'Painel do restaurante') : 'Painel do restaurante'}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => setShowAdminMenu(true)}
             className="flex items-center gap-1.5 bg-white/10 px-3 min-h-[40px] rounded-xl text-sm font-medium active:scale-95 transition-transform">
             <Menu size={17} /> Menu
@@ -2501,7 +2509,7 @@ function ClientView({ onAdmin }) {
 
 // ---------- SUPER ADMIN (dono do sistema) ----------
 
-function SuperAdminPanel({ token, onLogout }) {
+function SuperAdminPanel({ token, onLogout, onManage }) {
   const [restaurantes, setRestaurantes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
@@ -2619,6 +2627,13 @@ function SuperAdminPanel({ token, onLogout }) {
                   className="border border-stone-300 rounded-lg px-2 py-1 text-sm text-stone-900" />
               </div>
 
+              <div className="flex flex-wrap gap-2 mb-2">
+                <button onClick={() => onManage(rest.slug)}
+                  className="text-xs bg-stone-900 text-white px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5">
+                  <User size={13} /> Ver painel do restaurante
+                </button>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => adicionarDias(rest, 1)} disabled={salvandoEsse}
                   className="text-xs bg-stone-100 text-stone-700 px-3 py-1.5 rounded-lg font-medium">+1 dia</button>
@@ -2644,6 +2659,7 @@ export default function App() {
   const [view, setView] = useState('client'); // client | login | checking | admin | superadmin
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [manageSlug, setManageSlug] = useState(null);
 
   useEffect(() => {
     if (view !== 'checking' || !token || !userId) return;
@@ -2665,10 +2681,23 @@ export default function App() {
     return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
   }
   if (view === 'superadmin' && token) {
-    return <SuperAdminPanel token={token} onLogout={() => { setToken(null); setUserId(null); setView('client'); }} />;
+    return (
+      <SuperAdminPanel
+        token={token}
+        onLogout={() => { setToken(null); setUserId(null); setView('client'); }}
+        onManage={(slug) => { setManageSlug(slug); setView('admin'); }}
+      />
+    );
   }
   if (view === 'admin' && token) {
-    return <AdminView token={token} onLogout={() => { setToken(null); setUserId(null); setView('client'); }} />;
+    return (
+      <AdminView
+        token={token}
+        slugOverride={manageSlug}
+        onVoltarSuperAdmin={manageSlug ? () => { setManageSlug(null); setView('superadmin'); } : undefined}
+        onLogout={() => { setToken(null); setUserId(null); setManageSlug(null); setView('client'); }}
+      />
+    );
   }
   if (view === 'login') {
     return <LoginScreen onLogin={(tok, uid) => { setToken(tok); setUserId(uid); setView('checking'); }} onBack={() => setView('client')} />;
