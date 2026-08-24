@@ -1035,6 +1035,7 @@ function AdminView({ token, onLogout }) {
   const seteDiasAtrasStr = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [dataInicio, setDataInicio] = useState(seteDiasAtrasStr);
   const [dataFim, setDataFim] = useState(hojeStr);
+  const [licenca, setLicenca] = useState(null);
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
@@ -1045,6 +1046,12 @@ function AdminView({ token, onLogout }) {
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
+
+      try {
+        const lics = await sbFetch(`licencas?restaurante_id=eq.${rId}&select=status,expira_em`);
+        if (lics && lics.length > 0) setLicenca(lics[0]);
+      } catch (e) { /* sem licença cadastrada ainda */ }
+
       const [cats, prts] = await Promise.all([
         sbFetch(`categorias?restaurante_id=eq.${rId}&order=ordem`),
         sbFetch(`pratos?restaurante_id=eq.${rId}&select=*`),
@@ -1216,6 +1223,30 @@ function AdminView({ token, onLogout }) {
       </div>
 
       {erro && <p className="text-sm text-red-600 bg-red-50 px-5 py-2">{erro}</p>}
+
+      {licenca && (() => {
+        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        const dataExpira = licenca.expira_em ? new Date(licenca.expira_em + 'T00:00:00') : null;
+        if (!dataExpira) return null;
+        const dias = Math.round((dataExpira - hoje) / (1000 * 60 * 60 * 24));
+        if (licenca.status === 'pausada' || dias < 0) {
+          return (
+            <div className="bg-red-50 border-b border-red-200 px-5 py-2.5">
+              <p className="text-sm font-semibold text-red-700">Acesso suspenso</p>
+              <p className="text-xs text-red-500">Entre em contato com o financeiro para regularizar.</p>
+            </div>
+          );
+        }
+        if (dias <= 7) {
+          return (
+            <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5">
+              <p className="text-sm font-semibold text-amber-700">Sua licença vence em {dias} {dias === 1 ? 'dia' : 'dias'}</p>
+              <p className="text-xs text-amber-600">Entre em contato com o financeiro para renovar e evitar interrupção.</p>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       <div className="flex border-b border-stone-200 bg-white sticky top-[60px] z-10">
         <button onClick={() => setAba('cardapio')}
@@ -2153,6 +2184,7 @@ function ClientView({ onAdmin }) {
   const [cart, setCart] = useState([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showContato, setShowContato] = useState(false);
+  const [licenca, setLicenca] = useState(null);
   const mesa = new URLSearchParams(window.location.search).get('mesa');
   const acessoPainel = new URLSearchParams(window.location.search).get('painel') === '1';
 
@@ -2163,6 +2195,12 @@ function ClientView({ onAdmin }) {
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
+
+        try {
+          const lics = await sbFetch(`licencas?restaurante_id=eq.${rst.id}&select=status,expira_em`);
+          if (lics && lics.length > 0) setLicenca(lics[0]);
+        } catch (e) { /* sem licença cadastrada, segue liberado */ }
+
         const [cats, prts] = await Promise.all([
           sbFetch(`categorias?restaurante_id=eq.${rst.id}&order=ordem`),
           sbFetch(`pratos?restaurante_id=eq.${rst.id}&disponivel=eq.true&select=*`),
@@ -2182,6 +2220,25 @@ function ClientView({ onAdmin }) {
   }
   if (erro) {
     return <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center text-stone-500 text-sm">{erro}</div>;
+  }
+
+  if (licenca) {
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const dataExpira = licenca.expira_em ? new Date(licenca.expira_em + 'T00:00:00') : null;
+    const bloqueado = licenca.status === 'pausada' || (dataExpira && dataExpira < hoje);
+    if (bloqueado) {
+      return (
+        <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+          <div className="text-center max-w-xs">
+            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <X size={24} className="text-red-500" />
+            </div>
+            <h2 className="text-lg font-bold text-stone-900 mb-1.5">Acesso suspenso</h2>
+            <p className="text-sm text-stone-500">Este cardápio está temporariamente indisponível. Entre em contato com o financeiro para regularizar o acesso.</p>
+          </div>
+        </div>
+      );
+    }
   }
 
   const scrollToCategory = (id) => {
@@ -2553,15 +2610,170 @@ function ClientView({ onAdmin }) {
 
 // ---------- APP ----------
 
-export default function App() {
-  const [view, setView] = useState('client'); // client | login | admin
-  const [token, setToken] = useState(null);
+// ---------- SUPER ADMIN (dono do sistema) ----------
 
+function SuperAdminPanel({ token, onLogout }) {
+  const [restaurantes, setRestaurantes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [salvandoId, setSalvandoId] = useState(null);
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const dados = await sbFetch(`restaurantes?select=id,nome,slug,logo_url,licencas(id,status,expira_em)&order=nome`, { headers: authHeaders });
+      setRestaurantes(dados || []);
+    } catch (e) {
+      setErro('Erro ao carregar restaurantes: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const diasRestantes = (expiraEm) => {
+    if (!expiraEm) return null;
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const data = new Date(expiraEm + 'T00:00:00');
+    return Math.round((data - hoje) / (1000 * 60 * 60 * 24));
+  };
+
+  const statusVisual = (rest) => {
+    const lic = rest.licencas?.[0];
+    if (!lic) return { texto: 'Sem licença', cor: 'bg-stone-100 text-stone-500' };
+    if (lic.status === 'pausada') return { texto: 'Pausada', cor: 'bg-red-100 text-red-700' };
+    const dias = diasRestantes(lic.expira_em);
+    if (dias < 0) return { texto: 'Expirada', cor: 'bg-red-100 text-red-700' };
+    if (dias <= 7) return { texto: `Vence em ${dias}d`, cor: 'bg-amber-100 text-amber-700' };
+    return { texto: 'Ativa', cor: 'bg-emerald-100 text-emerald-700' };
+  };
+
+  const salvarLicenca = async (rest, novosDados) => {
+    setSalvandoId(rest.id);
+    setErro('');
+    try {
+      const lic = rest.licencas?.[0];
+      if (lic) {
+        await sbFetch(`licencas?id=eq.${lic.id}`, {
+          method: 'PATCH', headers: authHeaders,
+          body: JSON.stringify({ ...novosDados, atualizado_em: new Date().toISOString() }),
+        });
+      } else {
+        await sbFetch('licencas', {
+          method: 'POST', headers: authHeaders,
+          body: JSON.stringify({ restaurante_id: rest.id, status: 'ativa', expira_em: new Date().toISOString().slice(0, 10), ...novosDados }),
+        });
+      }
+      carregar();
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message);
+    }
+    setSalvandoId(null);
+  };
+
+  const adicionarDias = (rest, dias) => {
+    const lic = rest.licencas?.[0];
+    const base = lic?.expira_em ? new Date(lic.expira_em + 'T00:00:00') : new Date();
+    base.setDate(base.getDate() + dias);
+    salvarLicenca(rest, { expira_em: base.toISOString().slice(0, 10), status: 'ativa' });
+  };
+
+  const alternarPausa = (rest) => {
+    const lic = rest.licencas?.[0];
+    const pausada = lic?.status === 'pausada';
+    salvarLicenca(rest, { status: pausada ? 'ativa' : 'pausada' });
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <div className="bg-stone-900 text-white px-5 py-4 flex items-center justify-between sticky top-0 z-10"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+        <span className="font-semibold">Super Admin — Restaurantes</span>
+        <button onClick={onLogout} className="text-stone-300 hover:text-white p-1.5"><LogOut size={19} /></button>
+      </div>
+
+      {erro && <p className="text-sm text-red-600 bg-red-50 px-5 py-2">{erro}</p>}
+
+      <div className="p-4 space-y-3 max-w-2xl mx-auto">
+        {restaurantes.map(rest => {
+          const lic = rest.licencas?.[0];
+          const status = statusVisual(rest);
+          const salvandoEsse = salvandoId === rest.id;
+          return (
+            <div key={rest.id} className="bg-white border border-stone-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-stone-900 truncate">{rest.nome}</span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${status.cor}`}>{status.texto}</span>
+                </div>
+              </div>
+              <p className="text-xs text-stone-400 mb-3">/{rest.slug}</p>
+
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs text-stone-500">Vence em:</label>
+                <input type="date" defaultValue={lic?.expira_em || ''}
+                  onBlur={e => e.target.value && salvarLicenca(rest, { expira_em: e.target.value })}
+                  className="border border-stone-300 rounded-lg px-2 py-1 text-sm text-stone-900" />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => adicionarDias(rest, 1)} disabled={salvandoEsse}
+                  className="text-xs bg-stone-100 text-stone-700 px-3 py-1.5 rounded-lg font-medium">+1 dia</button>
+                <button onClick={() => adicionarDias(rest, 7)} disabled={salvandoEsse}
+                  className="text-xs bg-stone-100 text-stone-700 px-3 py-1.5 rounded-lg font-medium">+7 dias</button>
+                <button onClick={() => adicionarDias(rest, 30)} disabled={salvandoEsse}
+                  className="text-xs bg-stone-100 text-stone-700 px-3 py-1.5 rounded-lg font-medium">+30 dias</button>
+                <button onClick={() => alternarPausa(rest)} disabled={salvandoEsse}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium ${lic?.status === 'pausada' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                  {salvandoEsse ? <Loader2 size={12} className="animate-spin" /> : lic?.status === 'pausada' ? 'Reativar agora' : 'Pausar agora'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {restaurantes.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Nenhum restaurante cadastrado ainda.</p>}
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [view, setView] = useState('client'); // client | login | checking | admin | superadmin
+  const [token, setToken] = useState(null);
+  const [userId, setUserId] = useState(null);
+
+  useEffect(() => {
+    if (view !== 'checking' || !token || !userId) return;
+    (async () => {
+      try {
+        const superAdmins = await sbFetch(`super_admins?id=eq.${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (superAdmins && superAdmins.length > 0) {
+          setView('superadmin');
+        } else {
+          setView('admin');
+        }
+      } catch (e) {
+        setView('admin');
+      }
+    })();
+  }, [view, token, userId]);
+
+  if (view === 'checking') {
+    return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+  }
+  if (view === 'superadmin' && token) {
+    return <SuperAdminPanel token={token} onLogout={() => { setToken(null); setUserId(null); setView('client'); }} />;
+  }
   if (view === 'admin' && token) {
-    return <AdminView token={token} onLogout={() => { setToken(null); setView('client'); }} />;
+    return <AdminView token={token} onLogout={() => { setToken(null); setUserId(null); setView('client'); }} />;
   }
   if (view === 'login') {
-    return <LoginScreen onLogin={(tok) => { setToken(tok); setView('admin'); }} onBack={() => setView('client')} />;
+    return <LoginScreen onLogin={(tok, uid) => { setToken(tok); setUserId(uid); setView('checking'); }} onBack={() => setView('client')} />;
   }
   return <ClientView onAdmin={() => setView('login')} />;
 }
