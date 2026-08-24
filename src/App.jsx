@@ -13,7 +13,7 @@ function getSlugDaUrl() {
 
 // ---------- Sua marca (SaaS) — edite aqui ----------
 const MARCA_NOME = 'MENU PAPA';
-const MARCA_LOGO_URL = 'https://i.imgur.com/Rn2P8qP.jpeg';
+const MARCA_LOGO_URL = 'https://i.imgur.com/PklOSKh.png';
 
 // ---------- Helper: chamadas REST diretas ao Supabase ----------
 
@@ -2141,7 +2141,7 @@ function ClientView({ onAdmin }) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         {MARCA_LOGO_URL ? (
-          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="w-40 h-40 object-contain animate-pulse" />
+          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="w-64 h-auto max-w-[80vw] object-contain animate-pulse" />
         ) : (
           <Loader2 className="animate-spin text-stone-400" size={28} />
         )}
@@ -2381,9 +2381,12 @@ function ClientView({ onAdmin }) {
       )}
 
       {/* Marca do SaaS, discreta no rodapé */}
-      <div className="flex items-center justify-center gap-2 py-5 opacity-70">
-        {MARCA_LOGO_URL && <img src={MARCA_LOGO_URL} alt="" className="w-5 h-5 rounded-full object-cover" />}
-        <span className="text-sm text-stone-500 font-medium">{MARCA_NOME}</span>
+      <div className="flex items-center justify-center py-5 opacity-70">
+        {MARCA_LOGO_URL ? (
+          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="h-10 w-auto object-contain" />
+        ) : (
+          <span className="text-sm text-stone-500 font-medium">{MARCA_NOME}</span>
+        )}
       </div>
 
       {/* Barra de navegação inferior */}
