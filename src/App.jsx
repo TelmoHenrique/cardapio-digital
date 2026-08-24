@@ -5,6 +5,10 @@ const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aXBzYnV3c2p5emdzZmFzeWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc0NTYsImV4cCI6MjEwMjcyMzQ1Nn0.6k5ocACvG-ihQyPhmdquEriavxK7Un6E3LSECz8J5GA';
 const RESTAURANTE_SLUG = 'restaurante-raiz';
 
+// ---------- Sua marca (SaaS) — edite aqui ----------
+const MARCA_NOME = 'MENU PAPA';
+const MARCA_LOGO_URL = 'https://i.imgur.com/Rn2P8qP.jpeg';
+
 // ---------- Helper: chamadas REST diretas ao Supabase ----------
 
 async function sbFetch(path, options = {}) {
@@ -2351,6 +2355,12 @@ function ClientView({ onAdmin }) {
         {pratos.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Cardápio ainda sem pratos cadastrados.</p>}
       </div>
       )}
+
+      {/* Marca do SaaS, discreta no rodapé */}
+      <div className="flex items-center justify-center gap-1.5 py-5 opacity-50">
+        {MARCA_LOGO_URL && <img src={MARCA_LOGO_URL} alt="" className="w-4 h-4 rounded-full object-cover" />}
+        <span className="text-[11px] text-stone-400">Cardápio via {MARCA_NOME}</span>
+      </div>
 
       {/* Barra de navegação inferior */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-stretch justify-around px-2 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] z-30"
