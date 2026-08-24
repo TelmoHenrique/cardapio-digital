@@ -485,7 +485,6 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
     whatsapp_url: dadosAtuais?.whatsapp_url || '',
     pedido_habilitado: dadosAtuais?.pedido_habilitado ?? false,
     whatsapp_pedido_numero: dadosAtuais?.whatsapp_pedido_numero || '',
-    chamar_garcom_habilitado: dadosAtuais?.chamar_garcom_habilitado ?? true,
     status_manual: dadosAtuais?.status_manual || 'auto',
     dias_funcionamento: dadosAtuais?.dias_funcionamento || '0,1,2,3,4,5,6',
     formas_pagamento: dadosAtuais?.formas_pagamento || '',
@@ -672,13 +671,6 @@ function ProfileEditor({ token, restauranteId, dadosAtuais, onClose, onChanged }
                 <p className="text-xs text-stone-400 mt-1">Só números, com código do país (55) e DDD.</p>
               </div>
             )}
-          </div>
-
-          <div className="pt-2 border-t border-stone-100">
-            <label className="flex items-center gap-2 text-sm font-medium text-stone-800 mt-4">
-              <input type="checkbox" checked={form.chamar_garcom_habilitado} onChange={e => setForm({...form, chamar_garcom_habilitado: e.target.checked})} className="w-4 h-4" />
-              Ativar botão "Chamar garçom"
-            </label>
           </div>
         </div>
 
@@ -1027,8 +1019,7 @@ function AdminView({ token, onLogout }) {
   const [showDeliveryFees, setShowDeliveryFees] = useState(false);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [erro, setErro] = useState('');
-  const [aba, setAba] = useState('cardapio'); // cardapio | chamados | relatorio
-  const [chamados, setChamados] = useState([]);
+  const [aba, setAba] = useState('cardapio'); // cardapio | relatorio
   const [pedidosRelatorio, setPedidosRelatorio] = useState([]);
   const [loadingRelatorio, setLoadingRelatorio] = useState(false);
   const hojeStr = new Date().toISOString().slice(0, 10);
@@ -1042,7 +1033,7 @@ function AdminView({ token, onLogout }) {
   const carregar = async () => {
     setLoading(true);
     try {
-      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
+      const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
       const rId = rest[0]?.id;
       setRestauranteId(rId);
       setRestauranteDados(rest[0]);
@@ -1062,24 +1053,6 @@ function AdminView({ token, onLogout }) {
       setErro('Erro ao carregar dados: ' + e.message);
     }
     setLoading(false);
-  };
-
-  const carregarChamados = async () => {
-    if (!restauranteId) return;
-    try {
-      const dados = await sbFetch(`chamados?restaurante_id=eq.${restauranteId}&status=eq.pendente&order=criado_em.desc`, { headers: authHeaders });
-      setChamados(dados || []);
-    } catch (e) { /* silencioso, tenta de novo no próximo ciclo */ }
-  };
-
-  const atenderChamado = async (id) => {
-    try {
-      await sbFetch(`chamados?id=eq.${id}`, {
-        method: 'PATCH', headers: authHeaders,
-        body: JSON.stringify({ status: 'atendido', atendido_em: new Date().toISOString() }),
-      });
-      carregarChamados();
-    } catch (e) { setErro('Erro ao atualizar chamado: ' + e.message); }
   };
 
   const carregarRelatorio = async () => {
@@ -1116,13 +1089,6 @@ function AdminView({ token, onLogout }) {
   }, [aba, restauranteId, dataInicio, dataFim]);
 
   useEffect(() => { carregar(); }, []);
-
-  useEffect(() => {
-    if (!restauranteId) return;
-    carregarChamados();
-    const interval = setInterval(carregarChamados, 5000);
-    return () => clearInterval(interval);
-  }, [restauranteId]);
 
   const save = async (item) => {
     try {
@@ -1253,15 +1219,6 @@ function AdminView({ token, onLogout }) {
           className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${aba === 'cardapio' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
           Cardápio
         </button>
-        <button onClick={() => setAba('chamados')}
-          className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors relative ${aba === 'chamados' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
-          Chamados
-          {chamados.length > 0 && (
-            <span className="absolute top-1.5 right-[calc(50%-38px)] bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-              {chamados.length}
-            </span>
-          )}
-        </button>
         <button onClick={() => setAba('relatorio')}
           className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${aba === 'relatorio' ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400'}`}>
           Relatório
@@ -1342,28 +1299,6 @@ function AdminView({ token, onLogout }) {
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {aba === 'chamados' && (
-        <div className="p-4 max-w-2xl mx-auto space-y-2">
-          {chamados.length === 0 && (
-            <p className="text-stone-400 text-sm text-center py-10">Nenhum chamado pendente no momento.</p>
-          )}
-          {chamados.map(c => (
-            <div key={c.id} className="flex items-center justify-between bg-white border border-amber-200 bg-amber-50 rounded-xl p-4">
-              <div>
-                <p className="font-semibold text-stone-900">Mesa {c.mesa}</p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  {parseDataUTC(c.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
-                </p>
-              </div>
-              <button onClick={() => atenderChamado(c.id)}
-                className="flex items-center gap-1.5 bg-stone-900 text-white text-sm px-3 py-2 rounded-lg font-medium">
-                <Check size={14} /> Atendido
-              </button>
-            </div>
-          ))}
         </div>
       )}
 
@@ -1639,45 +1574,6 @@ function ItemModal({ item, onClose, pedidoHabilitado, onAddToCart }) {
 }
 
 // ---------- CARDÁPIO (cliente) ----------
-
-function WaiterButton({ restauranteId, mesa }) {
-  const [status, setStatus] = useState('idle'); // idle | sending | called
-  const [erro, setErro] = useState('');
-
-  const chamar = async () => {
-    if (!restauranteId) return;
-    setStatus('sending');
-    setErro('');
-    try {
-      await sbFetch('chamados', {
-        method: 'POST',
-        body: JSON.stringify({ restaurante_id: restauranteId, mesa: mesa || 'Não informada' }),
-      });
-      setStatus('called');
-      setTimeout(() => setStatus('idle'), 30000); // libera de novo depois de 30s
-    } catch (e) {
-      setErro('Não foi possível chamar. Tente de novo.');
-      setStatus('idle');
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      {erro && <p className="text-xs bg-red-600 text-white px-2.5 py-1 rounded-lg shadow">{erro}</p>}
-      <button
-        onClick={chamar}
-        disabled={status !== 'idle'}
-        className={`flex items-center gap-1.5 px-4 min-h-[36px] rounded-full text-xs font-medium border transition-colors active:scale-95 ${
-          status === 'called' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-stone-500 border-stone-200'
-        }`}>
-        {status === 'sending' && <Loader2 size={13} className="animate-spin" />}
-        {status === 'called' && <Check size={13} />}
-        {status === 'idle' && <Bell size={13} />}
-        {status === 'called' ? 'Garçom a caminho' : 'Chamar garçom'}
-      </button>
-    </div>
-  );
-}
 
 function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   const statusLojaCheckout = calcularStatusAbertura(restaurante);
@@ -2189,7 +2085,7 @@ function ClientView({ onAdmin }) {
   useEffect(() => {
     (async () => {
       try {
-        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,chamar_garcom_habilitado,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
+        const rest = await sbFetch(`restaurantes?slug=eq.${RESTAURANTE_SLUG}&select=id,nome,logo_url,capa_url,endereco,horario_texto,instagram_url,whatsapp_url,hora_abertura,hora_fechamento,pedido_habilitado,whatsapp_pedido_numero,status_manual,dias_funcionamento,formas_pagamento,endereco_completo`);
         const rst = rest[0];
         if (!rst) { setErro('Restaurante não encontrado.'); setLoading(false); return; }
         setRestaurante(rst);
@@ -2314,11 +2210,6 @@ function ClientView({ onAdmin }) {
           })()}
           {mesa && (
             <p className="text-stone-400 text-xs mt-1 uppercase tracking-wide">Mesa {mesa}</p>
-          )}
-        </div>
-        <div className="mt-3">
-          {restaurante?.chamar_garcom_habilitado !== false && (
-            <WaiterButton restauranteId={restaurante?.id} mesa={mesa} />
           )}
         </div>
       </div>
