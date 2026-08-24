@@ -2154,6 +2154,7 @@ function ClientView({ onAdmin }) {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showContato, setShowContato] = useState(false);
   const mesa = new URLSearchParams(window.location.search).get('mesa');
+  const acessoPainel = new URLSearchParams(window.location.search).get('painel') === '1';
 
   useEffect(() => {
     (async () => {
@@ -2203,11 +2204,13 @@ function ClientView({ onAdmin }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 h-7 bg-stone-50 rounded-t-[26px] border-t-[3px] border-orange-500" />
 
-        <button onClick={onAdmin} title="Painel do restaurante"
-          style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
-          className="absolute left-3 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white active:scale-95 hover:bg-black/50 transition-all">
-          <ChefHat size={16} />
-        </button>
+        {acessoPainel && (
+          <button onClick={onAdmin} title="Painel do restaurante"
+            style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
+            className="absolute left-3 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white active:scale-95 hover:bg-black/50 transition-all">
+            <ChefHat size={16} />
+          </button>
+        )}
 
         {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
           <div className="absolute right-3 flex gap-2" style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}>
