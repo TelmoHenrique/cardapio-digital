@@ -1395,18 +1395,16 @@ function AdminView({ token, onLogout }) {
                         <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{item.descricao}</p>
                         <p className="text-sm font-semibold text-stone-900 mt-1">{formatPreco(item.preco)}</p>
                       </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <div className="flex gap-1.5">
-                          <button onClick={() => setManagingOptions(item)} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg" title="Opções/sabores"><ListPlus size={21} /></button>
-                          <button onClick={() => { setEditing(item); setShowForm(true); }} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg"><Edit2 size={21} /></button>
-                          <button onClick={() => duplicarPrato(item)} className="text-stone-500 hover:text-stone-800 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg" title="Duplicar prato"><Copy size={21} /></button>
-                          <button onClick={() => remove(item.id)} className="text-stone-500 hover:text-red-600 active:scale-90 transition-transform w-11 h-11 flex items-center justify-center bg-stone-50 rounded-lg"><Trash2 size={21} /></button>
-                        </div>
-                        <button onClick={() => toggleDisponivel(item)}
-                          className={`text-xs px-3 min-h-[32px] rounded-md font-medium whitespace-nowrap active:scale-95 transition-transform ${item.disponivel ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                          {item.disponivel ? 'Disponível' : 'Reativar'}
-                        </button>
-                      </div>
+                      <button onClick={() => toggleDisponivel(item)}
+                        className={`shrink-0 text-xs px-3 min-h-[32px] rounded-md font-medium whitespace-nowrap active:scale-95 transition-transform ${item.disponivel ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                        {item.disponivel ? 'Disponível' : 'Reativar'}
+                      </button>
+                    </div>
+                    <div className="flex gap-1.5 mt-2 pt-2 border-t border-stone-100">
+                      <button onClick={() => setManagingOptions(item)} className="flex-1 text-stone-500 hover:text-stone-800 active:scale-95 transition-transform h-10 flex items-center justify-center bg-stone-50 rounded-lg" title="Opções/sabores"><ListPlus size={18} /></button>
+                      <button onClick={() => { setEditing(item); setShowForm(true); }} className="flex-1 text-stone-500 hover:text-stone-800 active:scale-95 transition-transform h-10 flex items-center justify-center bg-stone-50 rounded-lg"><Edit2 size={18} /></button>
+                      <button onClick={() => duplicarPrato(item)} className="flex-1 text-stone-500 hover:text-stone-800 active:scale-95 transition-transform h-10 flex items-center justify-center bg-stone-50 rounded-lg" title="Duplicar prato"><Copy size={18} /></button>
+                      <button onClick={() => remove(item.id)} className="flex-1 text-stone-500 hover:text-red-600 active:scale-95 transition-transform h-10 flex items-center justify-center bg-stone-50 rounded-lg"><Trash2 size={18} /></button>
                     </div>
                   </div>
                 ))}
