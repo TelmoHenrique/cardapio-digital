@@ -2132,7 +2132,7 @@ function ClientView({ onAdmin }) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         {MARCA_LOGO_URL ? (
-          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="w-16 h-16 rounded-full object-cover animate-pulse" />
+          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="w-40 h-40 object-contain animate-pulse" />
         ) : (
           <Loader2 className="animate-spin text-stone-400" size={28} />
         )}
