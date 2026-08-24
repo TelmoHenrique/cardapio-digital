@@ -2167,12 +2167,12 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
       {/* Capa */}
-      <div className="relative h-56 bg-stone-800 overflow-hidden rounded-b-[48px]">
+      <div className="relative h-56 bg-stone-800 overflow-hidden">
         {restaurante?.capa_url && (
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-orange-500" />
+        <div className="absolute bottom-0 left-0 right-0 h-7 bg-stone-50 rounded-t-[26px] border-t-[3px] border-orange-500" />
 
         <button onClick={onAdmin} title="Painel do restaurante"
           style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
