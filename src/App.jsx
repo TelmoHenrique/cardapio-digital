@@ -2167,7 +2167,7 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
       {/* Capa */}
-      <div className="relative h-40 bg-stone-800 rounded-b-[28px] overflow-hidden">
+      <div className="relative h-56 bg-stone-800 overflow-hidden">
         {restaurante?.capa_url && (
           <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
         )}
@@ -2198,11 +2198,11 @@ function ClientView({ onAdmin }) {
       </div>
 
       {/* Avatar sobreposto + info, centralizados */}
-      <div className="px-5 -mt-9 relative flex flex-col items-center text-center">
-        <div className="w-[72px] h-[72px] rounded-full border-4 border-stone-50 bg-white overflow-hidden shadow-md">
+      <div className="px-5 -mt-14 relative flex flex-col items-center text-center">
+        <div className="w-24 h-24 rounded-full border-[5px] border-stone-50 bg-white overflow-hidden shadow-lg">
           {restaurante?.logo_url
             ? <img src={restaurante.logo_url} alt="" className="w-full h-full object-cover" />
-            : <div className="w-full h-full flex items-center justify-center bg-stone-100"><ChefHat size={26} className="text-stone-400" /></div>}
+            : <div className="w-full h-full flex items-center justify-center bg-stone-100"><ChefHat size={34} className="text-stone-400" /></div>}
         </div>
         <div className="mt-2.5">
           <h1 className="text-xl font-bold text-stone-900">{restaurante?.nome || 'Restaurante'}</h1>
