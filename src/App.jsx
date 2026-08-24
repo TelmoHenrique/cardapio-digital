@@ -2129,7 +2129,15 @@ function ClientView({ onAdmin }) {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen bg-white flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        {MARCA_LOGO_URL ? (
+          <img src={MARCA_LOGO_URL} alt={MARCA_NOME} className="w-16 h-16 rounded-full object-cover animate-pulse" />
+        ) : (
+          <Loader2 className="animate-spin text-stone-400" size={28} />
+        )}
+      </div>
+    );
   }
   if (erro) {
     return <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center text-stone-500 text-sm">{erro}</div>;
