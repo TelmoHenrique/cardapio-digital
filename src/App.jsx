@@ -2116,6 +2116,7 @@ function ClientView({ onAdmin }) {
   const [selected, setSelected] = useState(null);
   const [busca, setBusca] = useState('');
   const [cart, setCart] = useState([]);
+  const [addingId, setAddingId] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showContato, setShowContato] = useState(false);
   const [licenca, setLicenca] = useState(null);
@@ -2198,6 +2199,23 @@ function ClientView({ onAdmin }) {
     }
   }
 
+  // "+" no card: se o prato tem opções (sabor etc.) abre a janela; senão adiciona direto
+  const adicionarRapido = async (item) => {
+    setAddingId(item.id);
+    let temOpcoes = false;
+    try {
+      const dados = await sbFetch(`opcoes_produto?prato_id=eq.${item.id}&disponivel=eq.true&select=id&limit=1`);
+      temOpcoes = !!(dados && dados.length > 0);
+    } catch (e) { temOpcoes = false; }
+    setAddingId(null);
+    if (temOpcoes) { setSelected(item); return; }
+    setCart(prev => {
+      const i = prev.findIndex(c => c.pratoId === item.id && !c.opcaoId);
+      if (i >= 0) return prev.map((c, k) => k === i ? { ...c, qtd: c.qtd + 1 } : c);
+      return [...prev, { pratoId: item.id, nome: item.nome, precoBase: item.preco, opcaoId: null, opcaoNome: null, opcaoPrecoAdicional: 0, qtd: 1 }];
+    });
+  };
+
   const scrollToCategory = (id) => {
     setActiveCat(id);
     const el = document.getElementById(`cat-${id}`);
@@ -2211,9 +2229,13 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
       {/* Capa */}
-      <div className="relative h-56 bg-stone-800 overflow-hidden">
+      <div className="relative h-56 lg:h-64 bg-stone-800 overflow-hidden">
         {restaurante?.capa_url && (
-          <img src={restaurante.capa_url} alt="" className="w-full h-full object-cover" />
+          <>
+            {/* no computador: fundo desfocado + foto centralizada na largura do cardápio */}
+            <img src={restaurante.capa_url} alt="" aria-hidden="true" className="hidden lg:block absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-70" />
+            <img src={restaurante.capa_url} alt="" className="relative w-full h-full object-cover lg:max-w-5xl lg:mx-auto" />
+          </>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 h-7 bg-stone-50 rounded-t-[26px] border-t-[3px] border-orange-500" />
@@ -2279,13 +2301,13 @@ function ClientView({ onAdmin }) {
 
       {/* Carrossel de destaques */}
       {pratos.some(p => p.destaque) && (
-        <div className="pt-5 pb-1 relative">
+        <div className="pt-5 pb-1 relative max-w-5xl mx-auto">
           <div className="flex items-center gap-1.5 px-5 mb-2.5">
             <Flame size={15} className="text-orange-500" />
             <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wide">Destaques da casa</h2>
           </div>
           <div className="relative">
-            <div className="flex gap-3 overflow-x-auto px-5 pb-2 snap-x snap-mandatory scroll-pl-5">
+            <div className="flex gap-3 overflow-x-auto px-5 pb-2 snap-x snap-mandatory scroll-pl-5 scroll-smooth">
               {pratos.filter(p => p.destaque).sort((a, b) => (a.ordem_destaque ?? 0) - (b.ordem_destaque ?? 0)).map(item => (
                 <button key={item.id} onClick={() => setSelected(item)}
                   className="snap-start shrink-0 w-36 bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left">
@@ -2311,7 +2333,7 @@ function ClientView({ onAdmin }) {
 
       {/* Barra de busca */}
       <div className="px-3 pt-4">
-        <div className="relative max-w-3xl mx-auto">
+        <div className="relative max-w-5xl mx-auto">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
           <input
             value={busca}
@@ -2324,7 +2346,7 @@ function ClientView({ onAdmin }) {
 
       {/* Abas fixas de categoria */}
       {!busca && (
-      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-2 overflow-x-auto z-10 px-3 py-2.5 shadow-sm mt-4">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-stone-200 flex gap-2 overflow-x-auto z-10 px-3 lg:px-[max(0.75rem,calc((100vw-64rem)/2+0.75rem))] py-2.5 shadow-sm mt-4">
         {categorias.map(cat => (
           <button key={cat.id} onClick={() => scrollToCategory(cat.id)}
             className={`px-4 min-h-[38px] text-sm font-semibold whitespace-nowrap rounded-full transition-all duration-200 shadow-sm active:scale-95 hover:shadow-md hover:-translate-y-0.5 ${
@@ -2338,14 +2360,14 @@ function ClientView({ onAdmin }) {
 
       {/* Resultado da busca (lista plana) */}
       {busca && (
-        <div className="px-3 py-5 max-w-3xl mx-auto">
+        <div className="px-3 py-5 max-w-5xl mx-auto">
           {(() => {
             const resultado = pratos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
             if (resultado.length === 0) {
               return <p className="text-stone-400 text-sm text-center py-10">Nenhum prato encontrado para "{busca}".</p>;
             }
             return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {resultado.map(item => (
                   <button key={item.id} onClick={() => setSelected(item)}
                     className="group w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-stone-300 transition-all duration-200 text-left">
@@ -2369,7 +2391,7 @@ function ClientView({ onAdmin }) {
 
       {/* Lista de pratos agrupada por categoria */}
       {!busca && (
-      <div className="px-3 py-5 max-w-3xl mx-auto space-y-7">
+      <div className="px-3 py-5 max-w-5xl mx-auto space-y-7">
         {categorias.map(cat => {
           const itensCat = pratos.filter(p => p.categoria_id === cat.id).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
           if (itensCat.length === 0) return null;
@@ -2378,26 +2400,36 @@ function ClientView({ onAdmin }) {
               <h2 className="text-lg font-bold text-stone-900 mb-1 px-1">{cat.nome}</h2>
               {cat.descricao && <p className="text-sm text-stone-500 mb-2 px-1">{cat.descricao}</p>}
               <div className="h-px bg-stone-200 mb-3.5" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {itensCat.map(item => (
-                  <button key={item.id} onClick={() => setSelected(item)}
-                    className="group w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-stone-300 transition-all duration-200 text-left">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-stone-900 text-[15px] leading-snug">{item.nome}</p>
-                      <p className="text-sm text-stone-500 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>
+                  <div key={item.id} role="button" tabIndex={0} onClick={() => setSelected(item)}
+                    onKeyDown={e => e.key === 'Enter' && setSelected(item)}
+                    className="group w-full flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-stone-300 transition-all duration-200 text-left cursor-pointer">
+                    <div className="flex-1 min-w-0 self-stretch flex flex-col justify-center">
+                      <p className="font-semibold text-stone-900 text-[15px] leading-snug line-clamp-2">{item.nome}</p>
+                      {item.descricao && <p className="text-[13px] text-stone-500 mt-1 line-clamp-2 leading-snug">{item.descricao}</p>}
                       <p className="text-emerald-600 font-bold mt-1.5">{formatPreco(item.preco)}</p>
                     </div>
-                    <div className="relative w-24 h-24 rounded-xl bg-stone-100 overflow-hidden shrink-0">
-                      {item.foto_url
-                        ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-stone-300" /></div>}
+                    <div className="relative w-32 h-32 sm:w-28 sm:h-28 lg:w-32 lg:h-32 shrink-0">
+                      <div className="w-full h-full rounded-xl bg-stone-100 overflow-hidden">
+                        {item.foto_url
+                          ? <img src={item.foto_url} alt={item.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                          : <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-stone-300" /></div>}
+                      </div>
                       {item.destaque && (
-                        <span className="absolute top-1 left-1 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow">
+                        <span className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow">
                           <Flame size={10} /> Top
                         </span>
                       )}
+                      {pedidoDisponivel && (
+                        <button onClick={e => { e.stopPropagation(); adicionarRapido(item); }}
+                          aria-label={`Adicionar ${item.nome}`}
+                          className="absolute -bottom-1.5 -right-1.5 w-11 h-11 rounded-full bg-orange-500 text-white shadow-lg flex items-center justify-center active:scale-90 transition-transform">
+                          {addingId === item.id ? <Loader2 size={18} className="animate-spin" /> : <Plus size={22} />}
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -2414,29 +2446,31 @@ function ClientView({ onAdmin }) {
       </div>
 
       {/* Barra de navegação inferior */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-stretch justify-around px-2 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] z-30"
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-stretch justify-around lg:justify-center lg:gap-4 px-2 pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] z-30"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex-1 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-orange-600 bg-orange-50 shadow-sm transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md">
+          className="flex-1 lg:flex-none lg:w-56 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-orange-600 bg-orange-50 shadow-sm transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md">
           <ReceiptText size={20} />
           <span className="text-[11px] font-semibold">Cardápio</span>
         </button>
 
         {pedidoDisponivel && (
           <button onClick={() => setShowCheckout(true)}
-            className="flex-1 relative flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
-            <ShoppingBag size={20} />
+            className="flex-1 lg:flex-none lg:w-56 relative flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
+            <span className="relative">
+              <ShoppingBag size={20} />
+              {cart.length > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 bg-orange-500 text-white text-[9px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
+                  {cart.reduce((s, c) => s + c.qtd, 0)}
+                </span>
+              )}
+            </span>
             <span className="text-[11px] font-medium">Pedidos</span>
-            {cart.length > 0 && (
-              <span className="absolute top-0.5 right-4 bg-orange-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {cart.reduce((s, c) => s + c.qtd, 0)}
-              </span>
-            )}
           </button>
         )}
 
         <button onClick={() => setShowContato(true)}
-          className="flex-1 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
+          className="flex-1 lg:flex-none lg:w-56 flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
           <Phone size={20} />
           <span className="text-[11px] font-medium">Perfil</span>
         </button>
@@ -2446,10 +2480,10 @@ function ClientView({ onAdmin }) {
       {pedidoDisponivel && cart.length > 0 && (
         <button onClick={() => setShowCheckout(true)}
           style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
-          className="fixed left-3 right-3 max-w-3xl mx-auto bg-stone-900 text-white rounded-2xl px-5 py-4 shadow-lg flex items-center justify-between z-20 active:scale-[0.98] transition-transform">
+          className="fixed left-3 right-3 max-w-5xl mx-auto bg-stone-900 text-white rounded-2xl px-5 py-4 shadow-lg flex items-center justify-between z-20 active:scale-[0.98] transition-transform">
           <span className="flex items-center gap-2 text-sm font-semibold">
             <ShoppingBag size={16} />
-            {cart.reduce((s, c) => s + c.qtd, 0)} {cart.reduce((s, c) => s + c.qtd, 0) === 1 ? 'item' : 'itens'}
+            Ver pedido · {cart.reduce((s, c) => s + c.qtd, 0)} {cart.reduce((s, c) => s + c.qtd, 0) === 1 ? 'item' : 'itens'}
           </span>
           <span className="font-bold">
             {formatPreco(cart.reduce((s, c) => s + (c.precoBase + (c.opcaoPrecoAdicional || 0)) * c.qtd, 0))}
