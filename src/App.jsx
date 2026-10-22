@@ -11,6 +11,28 @@ function getSlugDaUrl() {
   return caminho || null;
 }
 
+// Entrada exclusiva do dono: menupapa.com.br/dono
+const SLUG_DONO = 'dono';
+function slugRestauranteDaUrl() {
+  const s = getSlugDaUrl();
+  return s === SLUG_DONO ? null : s;
+}
+
+// ---------- Auditoria: registra acessos e ações (não bloqueia o app se falhar) ----------
+function registrarAuditoria(token, usuarioId, email, acao, restauranteSlug, detalhes) {
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/auditoria`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        usuario_id: usuarioId, email, acao,
+        restaurante_slug: restauranteSlug || null,
+        detalhes: [detalhes, (navigator.userAgent || '').slice(0, 120)].filter(Boolean).join(' | '),
+      }),
+    }).catch(() => {});
+  } catch (e) { /* ignora */ }
+}
+
 // ---------- Sua marca (SaaS) — edite aqui ----------
 const MARCA_NOME = 'MENU PAPA';
 const MARCA_LOGO_URL = 'https://i.imgur.com/Rn2P8qP.jpeg';
@@ -200,18 +222,18 @@ async function uploadFoto(file, token) {
 
 // ---------- LOGIN ----------
 
-function LoginScreen({ onLogin, onBack }) {
+function LoginScreen({ onLogin, onBack, modoDono, erroInicial }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState(erroInicial || '');
 
   const handleLogin = async () => {
     setErro('');
     setLoading(true);
     try {
       const data = await sbAuth('token?grant_type=password', { email, password: senha });
-      onLogin(data.access_token, data.user.id);
+      onLogin(data.access_token, data.user.id, data.user.email || email);
     } catch (e) {
       setErro('Email ou senha incorretos.');
     }
@@ -221,11 +243,11 @@ function LoginScreen({ onLogin, onBack }) {
   return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5">
       <div className="w-full max-w-sm">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-stone-400 text-sm mb-6"><ArrowLeft size={15} /> Voltar ao cardápio</button>
+        {!modoDono && <button onClick={onBack} className="flex items-center gap-1.5 text-stone-400 text-sm mb-6"><ArrowLeft size={15} /> Voltar ao cardápio</button>}
         <div className="bg-white border border-stone-200 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-1">
             <ChefHat size={18} className="text-stone-900" />
-            <h2 className="text-lg font-semibold text-stone-900">Painel do restaurante</h2>
+            <h2 className="text-lg font-semibold text-stone-900">{modoDono ? 'Super Admin — MENU PAPA' : 'Painel do restaurante'}</h2>
           </div>
           <p className="text-sm text-stone-500 mb-5">Entre com seu email e senha de administrador.</p>
 
@@ -2165,6 +2187,11 @@ function ClientView({ onAdmin }) {
             </div>
             <h2 className="text-lg font-bold text-stone-900 mb-1.5">Acesso suspenso</h2>
             <p className="text-sm text-stone-500">Este cardápio está temporariamente indisponível. Entre em contato com o financeiro para regularizar o acesso.</p>
+            {acessoPainel && (
+              <button onClick={onAdmin} className="mt-5 px-5 py-3 rounded-xl bg-stone-900 text-white text-sm font-semibold min-h-[44px]">
+                Entrar no painel
+              </button>
+            )}
           </div>
         </div>
       );
@@ -2543,7 +2570,11 @@ function ClientView({ onAdmin }) {
 
 // ---------- SUPER ADMIN (dono do sistema) ----------
 
-function SuperAdminPanel({ token, onLogout, onManage }) {
+function SuperAdminPanel({ token, userId, email, onLogout, onManage }) {
+  const [aba, setAba] = useState('restaurantes');
+  const [logs, setLogs] = useState([]);
+  const [filtroSlug, setFiltroSlug] = useState('');
+  const [filtroAcao, setFiltroAcao] = useState('');
   const [restaurantes, setRestaurantes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
@@ -2564,6 +2595,10 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
         licencas: licPorRestaurante[r.id] ? [licPorRestaurante[r.id]] : [],
       }));
       setRestaurantes(combinado);
+      try {
+        const lg = await sbFetch(`auditoria?select=*&order=criado_em.desc&limit=300`, { headers: authHeaders });
+        setLogs(lg || []);
+      } catch (e2) { setErro('Auditoria indisponível (rode o SQL da tabela auditoria): ' + e2.message); }
     } catch (e) {
       setErro('Erro ao carregar restaurantes: ' + e.message);
     }
@@ -2571,6 +2606,17 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
   };
 
   useEffect(() => { carregar(); }, []);
+
+  const fmtData = (v) => parseDataUTC(v).toLocaleString('pt-BR', { timeZone: 'America/Cuiaba', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const ultimoAcesso = (slug) => {
+    const l = logs.find(x => x.restaurante_slug === slug && x.acao === 'login_restaurante');
+    return l ? fmtData(l.criado_em) : null;
+  };
+  const NOMES_ACAO = {
+    login_dono: 'Login do dono', login_restaurante: 'Login do restaurante',
+    abriu_painel_restaurante: 'Dono abriu painel', licenca_alterada: 'Licença alterada',
+  };
+  const logsFiltrados = logs.filter(l => (!filtroSlug || l.restaurante_slug === filtroSlug) && (!filtroAcao || l.acao === filtroAcao));
 
   const diasRestantes = (expiraEm) => {
     if (!expiraEm) return null;
@@ -2605,6 +2651,7 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
           body: JSON.stringify({ restaurante_id: rest.id, status: 'ativa', expira_em: new Date().toISOString().slice(0, 10), ...novosDados }),
         });
       }
+      registrarAuditoria(token, userId, email, 'licenca_alterada', rest.slug, JSON.stringify(novosDados));
       carregar();
     } catch (e) {
       setErro('Erro ao salvar: ' + e.message);
@@ -2639,7 +2686,42 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
 
       {erro && <p className="text-sm text-red-600 bg-red-50 px-5 py-2">{erro}</p>}
 
-      <div className="p-4 space-y-3 max-w-2xl mx-auto">
+      <div className="flex gap-2 px-4 pt-4 max-w-2xl mx-auto">
+        {[['restaurantes', `Restaurantes (${restaurantes.length})`], ['auditoria', 'Auditoria']].map(([k, t]) => (
+          <button key={k} onClick={() => setAba(k)}
+            className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold ${aba === k ? 'bg-stone-900 text-white' : 'bg-white border border-stone-200 text-stone-600'}`}>{t}</button>
+        ))}
+      </div>
+
+      {aba === 'auditoria' && (
+        <div className="p-4 max-w-2xl mx-auto">
+          <div className="flex gap-2 mb-3">
+            <select value={filtroSlug} onChange={e => setFiltroSlug(e.target.value)} className="flex-1 border border-stone-300 rounded-lg px-2 py-2 text-sm bg-white">
+              <option value="">Todos os restaurantes</option>
+              {restaurantes.map(r => <option key={r.id} value={r.slug}>{r.nome}</option>)}
+            </select>
+            <select value={filtroAcao} onChange={e => setFiltroAcao(e.target.value)} className="flex-1 border border-stone-300 rounded-lg px-2 py-2 text-sm bg-white">
+              <option value="">Todas as ações</option>
+              {Object.entries(NOMES_ACAO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            {logsFiltrados.map(l => (
+              <div key={l.id} className="bg-white border border-stone-200 rounded-xl px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-stone-900">{NOMES_ACAO[l.acao] || l.acao}</span>
+                  <span className="text-xs text-stone-400 shrink-0">{fmtData(l.criado_em)}</span>
+                </div>
+                <p className="text-xs text-stone-500 break-all">{l.email}{l.restaurante_slug ? ` • /${l.restaurante_slug}` : ''}</p>
+                {l.detalhes && <p className="text-[11px] text-stone-400 break-all mt-0.5">{l.detalhes}</p>}
+              </div>
+            ))}
+            {logsFiltrados.length === 0 && <p className="text-stone-400 text-sm text-center py-10">Nenhum registro.</p>}
+          </div>
+        </div>
+      )}
+
+      <div className={`p-4 space-y-3 max-w-2xl mx-auto ${aba === 'auditoria' ? 'hidden' : ''}`}>
         {restaurantes.map(rest => {
           const lic = rest.licencas?.[0];
           const status = statusVisual(rest);
@@ -2652,7 +2734,7 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${status.cor}`}>{status.texto}</span>
                 </div>
               </div>
-              <p className="text-xs text-stone-400 mb-3">/{rest.slug}</p>
+              <p className="text-xs text-stone-400 mb-3">/{rest.slug} • Último acesso: {ultimoAcesso(rest.slug) || 'nunca'}</p>
 
               <div className="flex items-center gap-2 mb-3">
                 <label className="text-xs text-stone-500">Vence em:</label>
@@ -2690,10 +2772,13 @@ function SuperAdminPanel({ token, onLogout, onManage }) {
 }
 
 export default function App() {
-  const [view, setView] = useState('client'); // client | login | checking | admin | superadmin
+  const modoDono = getSlugDaUrl() === SLUG_DONO;
+  const [view, setView] = useState(modoDono ? 'login' : 'client'); // client | login | checking | admin | superadmin
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [manageSlug, setManageSlug] = useState(() => getSlugDaUrl());
+  const [email, setEmail] = useState('');
+  const [erroLogin, setErroLogin] = useState('');
+  const [manageSlug, setManageSlug] = useState(() => slugRestauranteDaUrl());
   const [viaSuperAdmin, setViaSuperAdmin] = useState(false);
 
   useEffect(() => {
@@ -2702,12 +2787,19 @@ export default function App() {
       try {
         const superAdmins = await sbFetch(`super_admins?id=eq.${userId}`, { headers: { Authorization: `Bearer ${token}` } });
         if (superAdmins && superAdmins.length > 0) {
+          registrarAuditoria(token, userId, email, 'login_dono', null, null);
           setView('superadmin');
+        } else if (modoDono) {
+          setToken(null); setUserId(null);
+          setErroLogin('Esta conta não tem acesso de dono.');
+          setView('login');
         } else {
+          registrarAuditoria(token, userId, email, 'login_restaurante', slugRestauranteDaUrl(), null);
           setView('admin');
         }
       } catch (e) {
-        setView('admin');
+        if (modoDono) { setToken(null); setView('login'); setErroLogin('Não foi possível verificar o acesso.'); }
+        else setView('admin');
       }
     })();
   }, [view, token, userId]);
@@ -2718,9 +2810,9 @@ export default function App() {
   if (view === 'superadmin' && token) {
     return (
       <SuperAdminPanel
-        token={token}
-        onLogout={() => { setToken(null); setUserId(null); setView('client'); }}
-        onManage={(slug) => { setManageSlug(slug); setViaSuperAdmin(true); setView('admin'); }}
+        token={token} userId={userId} email={email}
+        onLogout={() => { setToken(null); setUserId(null); setView(modoDono ? 'login' : 'client'); }}
+        onManage={(slug) => { registrarAuditoria(token, userId, email, 'abriu_painel_restaurante', slug, null); setManageSlug(slug); setViaSuperAdmin(true); setView('admin'); }}
       />
     );
   }
@@ -2729,13 +2821,14 @@ export default function App() {
       <AdminView
         token={token}
         slugOverride={manageSlug}
-        onVoltarSuperAdmin={viaSuperAdmin ? () => { setManageSlug(getSlugDaUrl()); setViaSuperAdmin(false); setView('superadmin'); } : undefined}
-        onLogout={() => { setToken(null); setUserId(null); setManageSlug(getSlugDaUrl()); setViaSuperAdmin(false); setView('client'); }}
+        onVoltarSuperAdmin={viaSuperAdmin ? () => { setManageSlug(slugRestauranteDaUrl()); setViaSuperAdmin(false); setView('superadmin'); } : undefined}
+        onLogout={() => { setToken(null); setUserId(null); setManageSlug(slugRestauranteDaUrl()); setViaSuperAdmin(false); setView(modoDono ? 'login' : 'client'); }}
       />
     );
   }
   if (view === 'login') {
-    return <LoginScreen onLogin={(tok, uid) => { setToken(tok); setUserId(uid); setView('checking'); }} onBack={() => setView('client')} />;
+    return <LoginScreen modoDono={modoDono} erroInicial={erroLogin}
+      onLogin={(tok, uid, em) => { setErroLogin(''); setToken(tok); setUserId(uid); setEmail(em); setView('checking'); }} onBack={() => setView('client')} />;
   }
   return <ClientView onAdmin={() => setView('login')} />;
 }
