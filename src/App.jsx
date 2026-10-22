@@ -18,6 +18,43 @@ function slugRestauranteDaUrl() {
   return s === SLUG_DONO ? null : s;
 }
 
+// ---------- Status do pedido ----------
+const STATUS_PEDIDO = [
+  { id: 'recebido', label: 'Recebido' },
+  { id: 'preparo', label: 'Em preparo' },
+  { id: 'pronto', label: 'Pronto' },
+  { id: 'saiu', label: 'Saiu para entrega' },
+  { id: 'entregue', label: 'Entregue' },
+];
+function rotuloStatus(id) { return STATUS_PEDIDO.find(x => x.id === id)?.label || 'Recebido'; }
+// Texto pronto que o restaurante envia ao cliente (null = só atualiza, sem WhatsApp)
+function mensagemStatusCliente(status, pedido, nomeLoja) {
+  const nome = (pedido.cliente_nome || '').split(' ')[0];
+  const ola = nome ? `Olá, ${nome}!` : 'Olá!';
+  const retirada = pedido.tipo_entrega === 'mesa';
+  if (status === 'preparo') return `${ola} Seu pedido no ${nomeLoja} já está em preparo 👨‍🍳`;
+  if (status === 'pronto') return retirada ? `${ola} Seu pedido no ${nomeLoja} está pronto! 🎉` : `${ola} Seu pedido no ${nomeLoja} está pronto e já vai sair para entrega 🎉`;
+  if (status === 'saiu') return `${ola} Seu pedido do ${nomeLoja} saiu para entrega 🛵 Já está a caminho!`;
+  return null;
+}
+function waClienteHref(telefone, texto) {
+  let d = String(telefone || '').replace(/\D/g, '');
+  if (d.length < 10) return null;
+  if (!d.startsWith('55')) d = '55' + d;
+  return `https://wa.me/${d}?text=${encodeURIComponent(texto)}`;
+}
+function chavePedidosStorage(restauranteId) { return `menupapa_pedidos_${restauranteId}`; }
+function carregarPedidosSalvos(restauranteId) {
+  try { return JSON.parse(localStorage.getItem(chavePedidosStorage(restauranteId)) || '[]'); } catch (e) { return []; }
+}
+function salvarPedidoCodigo(restauranteId, codigo) {
+  try {
+    const lista = carregarPedidosSalvos(restauranteId);
+    lista.unshift(codigo);
+    localStorage.setItem(chavePedidosStorage(restauranteId), JSON.stringify(lista.slice(0, 10)));
+  } catch (e) { /* ignora */ }
+}
+
 // ---------- Auditoria: registra acessos e ações (não bloqueia o app se falhar) ----------
 function registrarAuditoria(token, usuarioId, email, acao, restauranteSlug, detalhes) {
   try {
@@ -1105,6 +1142,22 @@ function AdminView({ token, onLogout, slugOverride, onVoltarSuperAdmin }) {
     setLoadingRelatorio(false);
   };
 
+  const mudarStatusPedido = async (pedido, novoStatus) => {
+    // abre o WhatsApp primeiro (o navegador só permite no toque direto) e depois grava o status
+    const texto = mensagemStatusCliente(novoStatus, pedido, restauranteDados?.nome || 'restaurante');
+    const href = texto ? waClienteHref(pedido.cliente_telefone, texto) : null;
+    if (href) window.open(href, '_blank');
+    setPedidosRelatorio(prev => prev.map(x => x.id === pedido.id ? { ...x, status: novoStatus } : x));
+    try {
+      await sbFetch(`pedidos?id=eq.${pedido.id}`, {
+        method: 'PATCH', headers: authHeaders, body: JSON.stringify({ status: novoStatus }),
+      });
+    } catch (e) {
+      setErro('Erro ao atualizar status: ' + e.message);
+      carregarRelatorio();
+    }
+  };
+
   const alternarCancelamento = async (pedido) => {
     try {
       await sbFetch(`pedidos?id=eq.${pedido.id}`, {
@@ -1327,6 +1380,25 @@ function AdminView({ token, onLogout, slugOverride, onVoltarSuperAdmin }) {
                         <p key={idx}>{it.qtd}x {it.nome}{it.opcaoNome ? ` (${it.opcaoNome})` : ''}</p>
                       ))}
                     </div>
+                    {!p.cancelado && (
+                      <div className="mb-2.5">
+                        <p className="text-[11px] text-stone-400 mb-1.5">Andamento — toque para atualizar{p.cliente_telefone ? ' e avisar o cliente' : ''}:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {STATUS_PEDIDO.map(st => {
+                            const ativo = (p.status || 'recebido') === st.id;
+                            const avisa = !!mensagemStatusCliente(st.id, p, '') && !!p.cliente_telefone;
+                            return (
+                              <button key={st.id} onClick={() => mudarStatusPedido(p, st.id)}
+                                className={`min-h-[36px] px-3 rounded-full text-xs font-semibold flex items-center gap-1 transition-colors ${ativo ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}>
+                                {ativo && <Check size={12} />}
+                                {st.label}
+                                {avisa && !ativo && <MessageCircle size={12} className="text-emerald-600" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <button onClick={() => alternarCancelamento(p)}
                       className={`text-xs px-3 py-1.5 rounded-md font-medium ${p.cancelado ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
                       {p.cancelado ? 'Reativar pedido' : 'Marcar como cancelado'}
@@ -1805,10 +1877,12 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
 
     // Registra o pedido no histórico (não bloqueia o envio se falhar)
     try {
+      const codigoPedido = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
       await sbFetch('pedidos', {
         method: 'POST',
         headers: { 'Prefer': 'return=minimal' },
         body: JSON.stringify({
+          codigo: codigoPedido,
           restaurante_id: restaurante.id,
           cliente_nome: nome || null,
           cliente_telefone: telefone || null,
@@ -1821,6 +1895,7 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
           forma_pagamento: pagamento,
         }),
       });
+      if (codigoPedido) salvarPedidoCodigo(restaurante.id, codigoPedido);
     } catch (e) {
       console.error('Erro ao registrar pedido:', e);
     }
@@ -2106,6 +2181,87 @@ function Checkout({ cart, setCart, restaurante, mesa, onClose }) {
   );
 }
 
+function MeusPedidos({ restaurante, qtdCarrinho, onAbrirCarrinho, onClose }) {
+  const [pedidos, setPedidos] = useState(null);
+
+  const carregar = async () => {
+    const codigos = carregarPedidosSalvos(restaurante.id);
+    if (codigos.length === 0) { setPedidos([]); return; }
+    try {
+      const dados = await sbFetch('rpc/status_pedidos', { method: 'POST', body: JSON.stringify({ p_codigos: codigos }) });
+      setPedidos((dados || []).sort((a, b) => parseDataUTC(b.criado_em) - parseDataUTC(a.criado_em)));
+    } catch (e) { setPedidos([]); }
+  };
+  useEffect(() => {
+    carregar();
+    const t = setInterval(carregar, 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  const etapas = (p) => p.tipo_entrega === 'mesa' ? STATUS_PEDIDO.filter(x => x.id !== 'saiu') : STATUS_PEDIDO;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl max-h-[88vh] overflow-y-auto p-5"
+        style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-stone-900">Meus pedidos</h3>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500"><X size={18} /></button>
+        </div>
+
+        {qtdCarrinho > 0 && (
+          <button onClick={onAbrirCarrinho}
+            className="w-full mb-4 min-h-[48px] rounded-2xl bg-stone-900 text-white font-semibold flex items-center justify-center gap-2">
+            <ShoppingBag size={16} /> Finalizar pedido · {qtdCarrinho} {qtdCarrinho === 1 ? 'item' : 'itens'}
+          </button>
+        )}
+
+        {pedidos === null && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-stone-400" size={22} /></div>}
+        {pedidos && pedidos.length === 0 && (
+          <p className="text-sm text-stone-400 text-center py-8">Você ainda não fez pedidos neste aparelho.</p>
+        )}
+
+        <div className="space-y-3">
+          {(pedidos || []).map(p => {
+            const lista = etapas(p);
+            const idx = Math.max(0, lista.findIndex(x => x.id === (p.status || 'recebido')));
+            return (
+              <div key={p.codigo} className={`border rounded-2xl p-4 ${p.cancelado ? 'border-red-200 bg-red-50/40' : 'border-stone-200'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-stone-900">
+                    {parseDataUTC(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Cuiaba' })}
+                  </span>
+                  <span className="text-sm font-bold text-emerald-700">{formatPreco(p.total)}</span>
+                </div>
+                {p.cancelado ? (
+                  <p className="text-sm font-semibold text-red-600">Pedido cancelado</p>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-orange-600 mb-3">{lista[idx].label}</p>
+                    <div className="flex items-center">
+                      {lista.map((et, i) => (
+                        <React.Fragment key={et.id}>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-white ${i <= idx ? 'bg-emerald-500' : 'bg-stone-200'}`}>
+                            {i <= idx ? <Check size={13} /> : <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
+                          {i < lista.length - 1 && <div className={`h-1 flex-1 ${i < idx ? 'bg-emerald-500' : 'bg-stone-200'}`} />}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <div className="flex justify-between mt-1.5 text-[10px] text-stone-400">
+                      <span>Recebido</span><span>{p.tipo_entrega === 'mesa' ? 'Pronto' : 'Entrega'}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientView({ onAdmin }) {
   const [pratos, setPratos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -2117,6 +2273,7 @@ function ClientView({ onAdmin }) {
   const [busca, setBusca] = useState('');
   const [cart, setCart] = useState([]);
   const [addingId, setAddingId] = useState(null);
+  const [showMeusPedidos, setShowMeusPedidos] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showContato, setShowContato] = useState(false);
   const [licenca, setLicenca] = useState(null);
@@ -2213,6 +2370,17 @@ function ClientView({ onAdmin }) {
       const i = prev.findIndex(c => c.pratoId === item.id && !c.opcaoId);
       if (i >= 0) return prev.map((c, k) => k === i ? { ...c, qtd: c.qtd + 1 } : c);
       return [...prev, { pratoId: item.id, nome: item.nome, precoBase: item.preco, opcaoId: null, opcaoNome: null, opcaoPrecoAdicional: 0, qtd: 1 }];
+    });
+  };
+
+  // "−" no card: tira uma unidade do último lançamento desse prato no carrinho
+  const removerUm = (item) => {
+    setCart(prev => {
+      let idx = -1;
+      prev.forEach((c, i) => { if (c.pratoId === item.id) idx = i; });
+      if (idx < 0) return prev;
+      if (prev[idx].qtd > 1) return prev.map((c, i) => i === idx ? { ...c, qtd: c.qtd - 1 } : c);
+      return prev.filter((_, i) => i !== idx);
     });
   };
 
@@ -2421,13 +2589,30 @@ function ClientView({ onAdmin }) {
                           <Flame size={10} /> Top
                         </span>
                       )}
-                      {pedidoDisponivel && (
-                        <button onClick={e => { e.stopPropagation(); adicionarRapido(item); }}
-                          aria-label={`Adicionar ${item.nome}`}
-                          className="absolute -bottom-1.5 -right-1.5 w-11 h-11 rounded-full bg-orange-500 text-white shadow-lg flex items-center justify-center active:scale-90 transition-transform">
-                          {addingId === item.id ? <Loader2 size={18} className="animate-spin" /> : <Plus size={22} />}
-                        </button>
-                      )}
+                      {pedidoDisponivel && (() => {
+                        const qtdNoCarrinho = cart.filter(c => c.pratoId === item.id).reduce((t, c) => t + c.qtd, 0);
+                        if (qtdNoCarrinho > 0) {
+                          return (
+                            <div onClick={e => e.stopPropagation()}
+                              className="absolute -bottom-1 -right-1 h-9 rounded-full bg-orange-500 text-white shadow-lg flex items-center overflow-hidden">
+                              <button onClick={e => { e.stopPropagation(); removerUm(item); }} aria-label={`Remover ${item.nome}`}
+                                className="w-8 h-9 flex items-center justify-center active:bg-orange-600"><Minus size={15} /></button>
+                              <span className="min-w-[1rem] text-center font-bold text-sm">{qtdNoCarrinho}</span>
+                              <button onClick={e => { e.stopPropagation(); adicionarRapido(item); }} aria-label={`Adicionar ${item.nome}`}
+                                className="w-8 h-9 flex items-center justify-center active:bg-orange-600">
+                                {addingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />}
+                              </button>
+                            </div>
+                          );
+                        }
+                        return (
+                          <button onClick={e => { e.stopPropagation(); adicionarRapido(item); }}
+                            aria-label={`Adicionar ${item.nome}`}
+                            className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-orange-500 text-white shadow-lg flex items-center justify-center active:scale-90 transition-transform">
+                            {addingId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Plus size={19} />}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -2455,7 +2640,7 @@ function ClientView({ onAdmin }) {
         </button>
 
         {pedidoDisponivel && (
-          <button onClick={() => setShowCheckout(true)}
+          <button onClick={() => setShowMeusPedidos(true)}
             className="flex-1 lg:flex-none lg:w-56 relative flex flex-col items-center justify-center gap-1 min-h-[48px] mx-1 rounded-2xl text-stone-500 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-orange-50 hover:text-orange-600">
             <span className="relative">
               <ShoppingBag size={20} />
@@ -2584,6 +2769,15 @@ function ClientView({ onAdmin }) {
           onClose={() => setSelected(null)}
           pedidoHabilitado={pedidoDisponivel}
           onAddToCart={(novoItem) => setCart(prev => [...prev, novoItem])}
+        />
+      )}
+
+      {showMeusPedidos && (
+        <MeusPedidos
+          restaurante={restaurante}
+          qtdCarrinho={cart.reduce((s, c) => s + c.qtd, 0)}
+          onAbrirCarrinho={() => { setShowMeusPedidos(false); setShowCheckout(true); }}
+          onClose={() => setShowMeusPedidos(false)}
         />
       )}
 
