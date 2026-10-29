@@ -369,8 +369,12 @@ export default function Landing() {
             <div className="relative" style={{ width: 320, height: 650 }}>
               <div className="absolute -inset-8 rounded-full bg-orange-500/15 blur-3xl" />
               <div className="relative w-full h-full rounded-[3rem] bg-black p-[10px] ring-1 ring-white/15 shadow-[0_40px_90px_-20px_rgba(0,0,0,.9)]">
-                <iframe title="Demonstração do MENU PAPA" src={`/${DEMO_SLUG}`} loading="lazy"
-                  className="w-full h-full rounded-[2.4rem] bg-white border-0" />
+                {/* a demonstração roda num celular de 390px e é reduzida para caber na moldura (letras e fotos ficam menores, como num celular de verdade) */}
+                <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-white relative">
+                  <iframe title="Demonstração do MENU PAPA" src={`/${DEMO_SLUG}`} loading="lazy"
+                    className="border-0 bg-white absolute top-0 left-0"
+                    style={{ width: 390, height: 819, transform: 'scale(0.769)', transformOrigin: 'top left' }} />
+                </div>
               </div>
             </div>
           </Reveal>
