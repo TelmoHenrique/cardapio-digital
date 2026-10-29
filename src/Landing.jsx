@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Smartphone, QrCode, MessageCircle, Truck, Clock, BarChart3, BellRing, MapPin, Zap, Check,
-  ChevronDown, ArrowRight, ArrowDown, Flame, ShoppingBag, Users, Percent, Camera, Plus, Minus, Sparkles, Store,
+  ChevronDown, ArrowRight, ArrowDown, X, Flame, ShoppingBag, Users, Percent, Camera, Plus, Minus, Sparkles, Store,
 } from 'lucide-react';
 
 // =====================================================================
@@ -207,6 +207,54 @@ function Calculadora() {
   );
 }
 
+// ------------------------- Demonstração em tela cheia -------------------------
+function DemoTelaCheia({ onClose }) {
+  const [tam, setTam] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const atualizar = () => setTam({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', atualizar);
+    window.addEventListener('orientationchange', atualizar);
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('resize', atualizar);
+      window.removeEventListener('orientationchange', atualizar);
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = antes;
+    };
+  }, []);
+
+  const BARRA = 64;                                   // altura da barra de cima
+  const MOLDURA = tam.w < 480 ? 6 : 10;               // espessura da moldura preta
+  const larguraTela = Math.min(390, tam.w - 12 - MOLDURA * 2);       // largura útil do celular
+  const alturaTela = Math.min(860, tam.h - BARRA - 10 - MOLDURA * 2); // altura útil do celular
+  const escala = larguraTela / 390;                    // o cardápio roda como num celular de 390px e é ajustado à tela
+  return (
+    <div className="fixed inset-0 z-[70] flex flex-col items-center bg-[#0b0806]/95 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="w-full flex items-center justify-between px-4 shrink-0" style={{ height: BARRA }}>
+        <div>
+          <p className="mp-display font-extrabold text-white leading-tight">Teste ao vivo</p>
+          <p className="text-xs text-[color:var(--mut)]">Toque nos pratos e adicione ao carrinho</p>
+        </div>
+        <button onClick={onClose} aria-label="Fechar demonstração"
+          className="w-11 h-11 rounded-full bg-white/12 hover:bg-white/20 flex items-center justify-center text-white" style={{ background: 'rgba(255,255,255,.12)' }}>
+          <X size={22} />
+        </button>
+      </div>
+      <div className="relative bg-black rounded-[2.4rem] shadow-[0_30px_80px_-20px_rgba(0,0,0,.9)] ring-1 ring-white/15 mp-pop"
+        style={{ width: larguraTela + MOLDURA * 2, height: alturaTela + MOLDURA * 2, padding: MOLDURA }}>
+        <div className="relative w-full h-full overflow-hidden bg-white" style={{ borderRadius: '2rem' }}>
+          <iframe title="Demonstração do MENU PAPA em tela cheia" src={`/${DEMO_SLUG}`}
+            className="border-0 bg-white absolute top-0 left-0"
+            style={{ width: 390, height: alturaTela / escala, transform: `scale(${escala})`, transformOrigin: 'top left' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Faq({ q, a }) {
   const [aberto, setAberto] = useState(false);
   return (
@@ -223,9 +271,8 @@ function Faq({ q, a }) {
 export default function Landing() {
   useReveal();
   const telefoneRef = useRef(null);
-  const irParaTelefone = () => {
-    if (telefoneRef.current) telefoneRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
+  const [demoAberta, setDemoAberta] = useState(false);
+  const irParaTelefone = () => setDemoAberta(true);
   useEffect(() => {
     document.title = 'MENU PAPA — Cardápio digital com pedidos no WhatsApp';
     const fontes = document.createElement('link');
@@ -375,7 +422,7 @@ export default function Landing() {
               <Cta><MessageCircle size={18} /> Quero um assim</Cta>
             </div>
             {/* chamada para testar a demonstração */}
-            <button type="button" onClick={irParaTelefone} aria-label="Ir para a demonstração"
+            <button type="button" onClick={irParaTelefone} aria-label="Abrir a demonstração em tela cheia"
               className="mt-8 flex flex-col lg:flex-row items-center lg:items-center gap-3 text-center lg:text-left w-full lg:w-auto cursor-pointer">
               <div className="rounded-2xl border border-orange-400/60 bg-orange-500/15 px-5 py-3.5 mp-pulse">
                 <p className="mp-display text-xl font-extrabold text-orange-300">Faça o teste agora!</p>
@@ -481,6 +528,8 @@ export default function Landing() {
           </div>
         </Reveal>
       </section>
+
+      {demoAberta && <DemoTelaCheia onClose={() => setDemoAberta(false)} />}
 
       <footer className="border-t border-white/10 py-10 px-5" style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[color:var(--mut)]">
