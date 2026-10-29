@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Landing from './Landing.jsx';
 import { Plus, Minus, Edit2, Trash2, X, ChefHat, ArrowLeft, Flame, Image as ImageIcon, Search, LogOut, Loader2, Bell, Check, Instagram, MessageCircle, ListPlus, ShoppingBag, ReceiptText, Phone, Menu, User, Layers, Truck, Copy, MapPin, Clock, Wallet } from 'lucide-react';
 
 const SUPABASE_URL = 'https://xzipsbuwsjyzgsfasygc.supabase.co';
@@ -2274,6 +2275,18 @@ function ClientView({ onAdmin }) {
   const [cart, setCart] = useState([]);
   const [addingId, setAddingId] = useState(null);
   const [showMeusPedidos, setShowMeusPedidos] = useState(false);
+  const [taxaMinima, setTaxaMinima] = useState(null);
+  useEffect(() => {
+    if (!restaurante?.id || !restaurante?.pedido_habilitado) return;
+    (async () => {
+      try {
+        const dados = await sbFetch(`taxas_entrega?restaurante_id=eq.${restaurante.id}&select=valor`);
+        const valores = (dados || []).map(t => Number(t.valor)).filter(v => !isNaN(v));
+        setTaxaMinima(valores.length ? Math.min(...valores) : null);
+      } catch (e) { /* silencioso */ }
+    })();
+  }, [restaurante?.id, restaurante?.pedido_habilitado]);
+
   const [showCheckout, setShowCheckout] = useState(false);
   const [showContato, setShowContato] = useState(false);
   const [licenca, setLicenca] = useState(null);
@@ -2397,7 +2410,7 @@ function ClientView({ onAdmin }) {
   return (
     <div className="min-h-screen bg-stone-50" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
       {/* Capa */}
-      <div className="relative h-56 lg:h-64 bg-stone-800 overflow-hidden">
+      <div className={`relative h-56 lg:h-64 overflow-hidden ${restaurante?.capa_url ? 'bg-stone-800' : 'bg-gradient-to-br from-orange-500 via-orange-600 to-amber-700'}`}>
         {restaurante?.capa_url && (
           <>
             {/* no computador: fundo desfocado + foto centralizada na largura do cardápio */}
@@ -2416,22 +2429,6 @@ function ClientView({ onAdmin }) {
           </button>
         )}
 
-        {(restaurante?.instagram_url || restaurante?.whatsapp_url) && (
-          <div className="absolute right-3 flex gap-2" style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}>
-            {restaurante?.instagram_url && (
-              <a href={restaurante.instagram_url} target="_blank" rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center active:scale-95 hover:scale-110 transition-transform">
-                <Instagram size={16} className="text-pink-600" />
-              </a>
-            )}
-            {restaurante?.whatsapp_url && (
-              <a href={whatsappHref(restaurante.whatsapp_url)} target="_blank" rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center active:scale-95 hover:scale-110 transition-transform">
-                <MessageCircle size={16} className="text-emerald-600" />
-              </a>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Avatar sobreposto + info, centralizados */}
@@ -2461,6 +2458,15 @@ function ClientView({ onAdmin }) {
             }
             return null;
           })()}
+          {taxaMinima !== null && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+              {taxaMinima !== null && (
+                <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-600 text-xs font-medium px-3 py-1.5 rounded-full">
+                  <Truck size={13} /> {taxaMinima === 0 ? 'Entrega grátis em alguns bairros' : `Entrega a partir de ${formatPreco(taxaMinima)}`}
+                </span>
+              )}
+            </div>
+          )}
           {mesa && (
             <p className="text-stone-400 text-xs mt-1 uppercase tracking-wide">Mesa {mesa}</p>
           )}
@@ -3031,6 +3037,10 @@ export default function App() {
       }
     })();
   }, [view, token, userId]);
+
+  // Endereço sem nome de restaurante (menupapa.com.br) = página de apresentação do MENU PAPA
+  const naRaiz = !getSlugDaUrl() && new URLSearchParams(window.location.search).get('painel') !== '1';
+  if (naRaiz) return <Landing />;
 
   if (view === 'checking') {
     return <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-stone-400" size={28} /></div>;
