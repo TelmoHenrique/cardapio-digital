@@ -222,6 +222,10 @@ function Faq({ q, a }) {
 
 export default function Landing() {
   useReveal();
+  const telefoneRef = useRef(null);
+  const irParaTelefone = () => {
+    if (telefoneRef.current) telefoneRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
   useEffect(() => {
     document.title = 'MENU PAPA — Cardápio digital com pedidos no WhatsApp';
     const fontes = document.createElement('link');
@@ -371,17 +375,18 @@ export default function Landing() {
               <Cta><MessageCircle size={18} /> Quero um assim</Cta>
             </div>
             {/* chamada para testar a demonstração */}
-            <div className="mt-8 flex flex-col lg:flex-row items-center lg:items-center gap-3 text-center lg:text-left">
+            <button type="button" onClick={irParaTelefone} aria-label="Ir para a demonstração"
+              className="mt-8 flex flex-col lg:flex-row items-center lg:items-center gap-3 text-center lg:text-left w-full lg:w-auto cursor-pointer">
               <div className="rounded-2xl border border-orange-400/60 bg-orange-500/15 px-5 py-3.5 mp-pulse">
                 <p className="mp-display text-xl font-extrabold text-orange-300">Faça o teste agora!</p>
                 <p className="text-sm text-[color:var(--mut)] mt-0.5">Toque no celular, escolha um prato e adicione ao carrinho.</p>
               </div>
               <ArrowDown size={44} strokeWidth={2.75} className="text-orange-400 mp-bounce lg:hidden" />
               <ArrowRight size={44} strokeWidth={2.75} className="text-orange-400 mp-bouncex hidden lg:block" />
-            </div>
+            </button>
           </Reveal>
           <Reveal className="flex justify-center">
-            <div className="relative" style={{ width: 320, height: 650 }}>
+            <div ref={telefoneRef} className="relative" style={{ width: 320, height: 650 }}>
               <div className="absolute -inset-8 rounded-full bg-orange-500/15 blur-3xl" />
               <div className="relative w-full h-full rounded-[3rem] bg-black p-[10px] ring-1 ring-white/15 mp-ring">
                 {/* a demonstração roda num celular de 390px e é reduzida para caber na moldura (letras e fotos ficam menores, como num celular de verdade) */}
