@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Smartphone, QrCode, MessageCircle, Truck, Clock, BarChart3, BellRing, MapPin, Zap, Check,
-  ChevronDown, ArrowRight, Flame, ShoppingBag, Users, Percent, Camera, Plus, Minus, Sparkles, Store,
+  ChevronDown, ArrowRight, ArrowDown, Flame, ShoppingBag, Users, Percent, Camera, Plus, Minus, Sparkles, Store,
 } from 'lucide-react';
 
 // =====================================================================
@@ -45,6 +45,12 @@ const CSS = `
 @keyframes mpping { 0%{ transform:scale(1) } 50%{ transform:scale(1.25) } 100%{ transform:scale(1) } }
 @keyframes mpmarq { from { transform: translateX(0) } to { transform: translateX(-50%) } }
 .mp-marq { animation: mpmarq 28s linear infinite; width:max-content; }
+@keyframes mpbounce { 0%,100% { transform: translateY(0) } 50% { transform: translateY(14px) } }
+@keyframes mpbouncex { 0%,100% { transform: translateX(0) } 50% { transform: translateX(14px) } }
+@keyframes mpring { 0% { box-shadow:0 0 0 0 rgba(249,115,22,.55), 0 40px 90px -20px rgba(0,0,0,.9) } 100% { box-shadow:0 0 0 22px rgba(249,115,22,0), 0 40px 90px -20px rgba(0,0,0,.9) } }
+.mp-bounce { animation: mpbounce 1s ease-in-out infinite; }
+.mp-bouncex { animation: mpbouncex 1s ease-in-out infinite; }
+.mp-ring { animation: mpring 1.8s ease-out infinite; }
 @keyframes mpslide { from { transform: translateY(120%); opacity:0 } to { transform:none; opacity:1 } }
 .mp-slide { animation: mpslide .5s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes mppop { 0%{ transform:scale(.6); opacity:0 } 70%{ transform:scale(1.06) } 100%{ transform:scale(1); opacity:1 } }
@@ -53,7 +59,7 @@ const CSS = `
 .mp-range { -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:99px; background:rgba(255,255,255,.14); outline:none; }
 .mp-range::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#f97316; border:4px solid #fff; box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:pointer; }
 .mp-range::-moz-range-thumb { width:22px; height:22px; border-radius:50%; background:#f97316; border:4px solid #fff; cursor:pointer; }
-@media (prefers-reduced-motion: reduce) { .mp-float,.mp-pulse,.mp-marq,.mp-slide,.mp-pop { animation:none !important } .mp-reveal { opacity:1; transform:none; transition:none } }
+@media (prefers-reduced-motion: reduce) { .mp-float,.mp-pulse,.mp-marq,.mp-slide,.mp-pop,.mp-bounce,.mp-bouncex,.mp-ring { animation:none !important } .mp-reveal { opacity:1; transform:none; transition:none } }
 `;
 
 function useReveal() {
@@ -364,11 +370,20 @@ export default function Landing() {
               <a href={`/${DEMO_SLUG}`} target="_blank" rel="noopener noreferrer" className="mp-btn mp-btn-ghost">Abrir em tela cheia <ArrowRight size={18} /></a>
               <Cta><MessageCircle size={18} /> Quero um assim</Cta>
             </div>
+            {/* chamada para testar a demonstração */}
+            <div className="mt-8 flex flex-col lg:flex-row items-center lg:items-center gap-3 text-center lg:text-left">
+              <div className="rounded-2xl border border-orange-400/60 bg-orange-500/15 px-5 py-3.5 mp-pulse">
+                <p className="mp-display text-xl font-extrabold text-orange-300">Faça o teste agora!</p>
+                <p className="text-sm text-[color:var(--mut)] mt-0.5">Toque no celular, escolha um prato e adicione ao carrinho.</p>
+              </div>
+              <ArrowDown size={44} strokeWidth={2.75} className="text-orange-400 mp-bounce lg:hidden" />
+              <ArrowRight size={44} strokeWidth={2.75} className="text-orange-400 mp-bouncex hidden lg:block" />
+            </div>
           </Reveal>
           <Reveal className="flex justify-center">
             <div className="relative" style={{ width: 320, height: 650 }}>
               <div className="absolute -inset-8 rounded-full bg-orange-500/15 blur-3xl" />
-              <div className="relative w-full h-full rounded-[3rem] bg-black p-[10px] ring-1 ring-white/15 shadow-[0_40px_90px_-20px_rgba(0,0,0,.9)]">
+              <div className="relative w-full h-full rounded-[3rem] bg-black p-[10px] ring-1 ring-white/15 mp-ring">
                 {/* a demonstração roda num celular de 390px e é reduzida para caber na moldura (letras e fotos ficam menores, como num celular de verdade) */}
                 <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-white relative">
                   <iframe title="Demonstração do MENU PAPA" src={`/${DEMO_SLUG}`} loading="lazy"
