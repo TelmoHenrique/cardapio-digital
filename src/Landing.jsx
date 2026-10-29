@@ -11,7 +11,7 @@ import {
 const MARCA_NOME = 'MENU PAPA';
 const MARCA_LOGO_URL = 'https://i.imgur.com/Rn2P8qP.jpeg';
 const WHATSAPP_CONTATO = '5565992647429'; // 55 + DDD + número
-const DEMO_SLUG = 'espeto-do-dito';   // restaurante que aparece na demonstração ao vivo
+const DEMO_SLUG = 'espeto-cuiaba';   // restaurante que aparece na demonstração ao vivo
 const PRECO_CARDAPIO = null;          // ex: 'R$ 49,90'  (null = mostra "Consulte valores")
 const PRECO_PEDIDOS = null;           // ex: 'R$ 89,90'
 
